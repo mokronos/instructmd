@@ -5,6 +5,14 @@ Show the markdown instruction files a coding agent would load when it starts.
 ## Install
 
 ```sh
+cargo install instructmd
+```
+
+To install from a source checkout instead:
+
+```sh
+git clone https://github.com/mokronos/instructmd.git
+cd instructmd
 cargo install --path cli
 ```
 

@@ -2,799 +2,179 @@
 import Layout from "../layouts/Layout.astro";
 
 const repositoryUrl = "https://github.com/mokronos/instructmd";
-const visionUrl = `${repositoryUrl}/blob/main/VISION.md`;
 const homeUrl = `${import.meta.env.BASE_URL.replace(/\/$/, "")}/`;
 
 const harnesses = [
   {
     id: "claude",
     label: "Claude Code",
-    boundary: "filesystem root → working directory",
     files: [
-      { path: "~/.claude/CLAUDE.md", scope: "global", state: "loaded" },
-      { path: "/repo/CLAUDE.md", scope: "project", state: "loaded" },
-      { path: "/repo/api/CLAUDE.local.md", scope: "local", state: "loaded" },
+      ["~/.claude/CLAUDE.md", "global", "loaded"],
+      ["/repo/CLAUDE.md", "repository", "loaded"],
+      ["/repo/api/CLAUDE.local.md", "working directory", "loaded"],
     ],
-    context: ["Global conventions", "Repository architecture", "API-specific overrides"],
-    note: "Descendant instructions activate later when files in their subtree are read.",
+    note: "Walks the ancestor chain into the working directory.",
   },
   {
     id: "codex",
-    label: "Codex CLI",
-    boundary: "Git root → working directory",
+    label: "Codex",
     files: [
-      { path: "~/.codex/AGENTS.md", scope: "global", state: "loaded" },
-      { path: "/repo/AGENTS.override.md", scope: "project", state: "loaded" },
-      { path: "/repo/api/AGENTS.md", scope: "directory", state: "loaded" },
+      ["~/.codex/AGENTS.md", "global", "loaded"],
+      ["/repo/AGENTS.override.md", "repository", "loaded"],
+      ["/repo/api/AGENTS.md", "working directory", "loaded"],
     ],
-    context: ["Global conventions", "Root override selected", "API directory guidance"],
-    note: "One candidate wins per directory. Project instructions share a 32 KiB budget.",
+    note: "Shows the selected candidate and its precedence at each scope.",
   },
   {
     id: "opencode",
     label: "OpenCode",
-    boundary: "worktree root → working directory",
     files: [
-      { path: "~/.config/opencode/AGENTS.md", scope: "global", state: "loaded" },
-      { path: "/repo/AGENTS.md", scope: "project", state: "loaded" },
-      { path: "/repo/api/CLAUDE.md", scope: "fallback", state: "shadowed" },
+      ["~/.config/opencode/AGENTS.md", "global", "loaded"],
+      ["/repo/AGENTS.md", "repository", "loaded"],
+      ["/repo/api/AGENTS.md", "working directory", "loaded"],
+      ["/repo/api/CLAUDE.md", "shadowed", "shadowed"],
     ],
-    context: ["Global conventions", "Repository instructions", "Fallback suppressed"],
-    note: "AGENTS.md suppresses CLAUDE.md in the same location; configured sources append.",
+    note: "Makes a same-directory fallback that lost precedence explicit.",
   },
-];
-
-const models = [
-  ["Ancestor chain", "Claude, OpenCode, Gemini, Amp", "Can grow as files are touched"],
-  ["Fixed startup chain", "Codex, pi, Qwen", "Root-to-CWD composition"],
-  ["Conditional rules", "Cursor, Cline, Roo, Continue", "Globs, modes, and model choice"],
-  ["Explicit context", "Junie, Kiro, Aider", "Root, scope, or user supplied"],
 ];
 ---
 
 <Layout
-  title="instruct.md — See what your coding agent sees"
-  description="A CLI for visualizing how coding agents discover, order, and compose instruction files."
+  title="instructmd — Explain your coding agent's instruction stack"
+  description="Inspect the exact startup order of AGENTS.md and CLAUDE.md files, including why each instruction file was loaded or shadowed."
 >
   <header class="site-header">
     <div class="container nav-shell">
-      <a class="brand" href={homeUrl} aria-label="instruct.md home">
+      <a class="brand" href={homeUrl} aria-label="instructmd home">
         <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
         <span>instruct<span>.md</span></span>
       </a>
-      <nav aria-label="Primary navigation">
-        <a href="#how-it-works">How it works</a>
-        <a href="#landscape">Landscape</a>
-        <a class="nav-github" href={repositoryUrl} target="_blank" rel="noreferrer">
-          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7A11.3 11.3 0 0 0 8.4 22.8c.6.1.8-.3.8-.6v-2.3c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.4 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.4-1.3-5.4-5.6 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.3-5.4 5.6.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"/></svg>
-          <span>GitHub</span>
-        </a>
-      </nav>
+      <a class="github" href={repositoryUrl} target="_blank" rel="noreferrer">
+        <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 .7A11.3 11.3 0 0 0 8.4 22.8c.6.1.8-.3.8-.6v-2.3c-3.3.7-4-1.4-4-1.4-.5-1.4-1.3-1.7-1.3-1.7-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.4 1 .1-.8.4-1.3.8-1.6-2.7-.3-5.4-1.3-5.4-5.6 0-1.3.4-2.3 1.2-3.1-.1-.3-.5-1.5.1-3.1 0 0 1-.3 3.2 1.2a11 11 0 0 1 5.8 0c2.2-1.5 3.2-1.2 3.2-1.2.6 1.6.2 2.8.1 3.1.8.8 1.2 1.8 1.2 3.1 0 4.4-2.7 5.3-5.4 5.6.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6A11.3 11.3 0 0 0 12 .7Z"/></svg>
+        GitHub
+      </a>
     </div>
   </header>
 
   <main>
     <section class="hero">
-      <div class="hero-grid" aria-hidden="true"></div>
       <div class="container hero-copy">
-        <div class="status-pill"><span></span> Open source · in development</div>
-        <h1>See what your<br />coding agent <em>sees.</em></h1>
-        <p>
-          One repository. Three instruction files. Six agents. Six different answers.
-          <strong>instruct.md</strong> makes the hidden context visible.
+        <p class="kicker">Startup instruction resolution</p>
+        <h1>Know what gets<br /><em>into context.</em></h1>
+        <p class="intro">
+          Coding agents stack <code>AGENTS.md</code> and <code>CLAUDE.md</code> from global,
+          repository, and working-directory scopes. instructmd shows the exact startup order —
+          and why each file was loaded or shadowed.
         </p>
-        <div class="hero-actions">
-          <a class="button button-primary" href={repositoryUrl} target="_blank" rel="noreferrer">
-            Follow the build
-            <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 17 10-10M8 7h9v9"/></svg>
-          </a>
-          <a class="button button-secondary" href={visionUrl} target="_blank" rel="noreferrer">Read the vision</a>
+        <div class="install-command">
+          <code>cargo install instructmd</code>
+          <button type="button" data-copy-command aria-label="Copy cargo install instructmd">
+            <span data-copy-label>Copy</span>
+          </button>
+          <span class="sr-only" aria-live="polite" data-copy-status></span>
         </div>
       </div>
+    </section>
 
-      <div class="container demo-wrap" aria-label="Instruction composition example">
-        <div class="demo-glow" aria-hidden="true"></div>
+    <section class="demonstration" aria-labelledby="demo-title">
+      <div class="container">
+        <div class="section-heading">
+          <p class="kicker">One directory, visible layers</p>
+          <h2 id="demo-title">Resolution, not guesswork.</h2>
+        </div>
         <div class="demo-window">
-          <div class="window-bar">
-            <div class="window-dots" aria-hidden="true"><span></span><span></span><span></span></div>
-            <div class="window-path"><span>~/work/acme/api</span><b>instruct.md</b></div>
-            <span class="window-state">trace mode</span>
-          </div>
-
-          <div class="harness-tabs" role="tablist" aria-label="Select an agent harness">
+          <div class="window-bar"><span aria-hidden="true"></span><code>~/work/acme/api</code><b>startup trace</b></div>
+          <div class="harness-tabs" role="tablist" aria-label="Select an agent">
             {harnesses.map((harness, index) => (
-              <button
-                type="button"
-                role="tab"
-                data-harness-tab={harness.id}
-                aria-selected={index === 0 ? "true" : "false"}
-                aria-controls={`panel-${harness.id}`}
-              >
-                <span class={`harness-dot ${harness.id}`}></span>{harness.label}
-              </button>
+              <button type="button" role="tab" data-harness-tab={harness.id} aria-selected={index === 0 ? "true" : "false"} aria-controls={`panel-${harness.id}`} tabindex={index === 0 ? "0" : "-1"}>{harness.label}</button>
             ))}
           </div>
-
           {harnesses.map((harness, index) => (
-            <div
-              id={`panel-${harness.id}`}
-              class="harness-panel"
-              role="tabpanel"
-              data-harness-panel={harness.id}
-              hidden={index !== 0}
-            >
-              <div class="source-pane">
-                <div class="pane-title"><span>01</span> discovered files</div>
-                <div class="boundary-label">boundary: {harness.boundary}</div>
-                <div class="file-list">
-                  {harness.files.map((file, fileIndex) => (
-                    <div class:list={["file-row", file.state === "shadowed" && "is-shadowed"]}>
-                      <span class="tree-guide" aria-hidden="true">{fileIndex === harness.files.length - 1 ? "└" : "├"}</span>
-                      <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2.5 1.5h7l4 4v9h-11v-13Z" stroke="currentColor"/><path d="M9.5 1.5v4h4" stroke="currentColor"/></svg>
-                      <span class="file-path">{file.path}</span>
-                      <span class="scope">{file.scope}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div class="flow-pane">
-                <div class="pane-title"><span>02</span> composition</div>
-                <div class="flow-line"><i></i><span>discover</span><i></i></div>
-                <div class="flow-node">apply harness rules</div>
-                <div class="flow-line"><i></i><span>order</span><i></i></div>
-                <div class="flow-node accent">compose context</div>
-                <p>{harness.note}</p>
-              </div>
-
-              <div class="context-pane">
-                <div class="pane-title"><span>03</span> final context</div>
-                <div class="context-meta">
-                  <span>system-reminder</span>
-                  <span>{harness.context.length} blocks</span>
-                </div>
-                <ol>
-                  {harness.context.map((item, contextIndex) => (
-                    <li class:list={[contextIndex === harness.context.length - 1 && "is-last"]}>
-                      <span>{String(contextIndex + 1).padStart(2, "0")}</span>
-                      <p>{item}</p>
-                    </li>
-                  ))}
-                </ol>
-                <div class="context-cursor"><span>&gt;</span><i></i></div>
-              </div>
+            <div id={`panel-${harness.id}`} class="harness-panel" role="tabpanel" data-harness-panel={harness.id} hidden={index !== 0} tabindex="0">
+              <div class="trace-label"><span>resolved startup stack</span><span>global → repository → working directory</span></div>
+              <ol class="layer-list">
+                {harness.files.map(([path, scope, state], fileIndex) => (
+                  <li class:list={[state === "shadowed" && "is-shadowed"]}>
+                    <span class="layer-number">{String(fileIndex + 1).padStart(2, "0")}</span>
+                    <code>{path}</code>
+                    <span class="layer-scope">{scope}</span>
+                    <span class="layer-state">{state === "shadowed" ? "not loaded — AGENTS.md wins here" : "loaded"}</span>
+                  </li>
+                ))}
+              </ol>
+              <p class="trace-note">Why: {harness.note}</p>
             </div>
           ))}
         </div>
-        <div class="demo-caption"><span>Same directory.</span><i></i><span>Different context.</span></div>
       </div>
     </section>
 
-    <section class="statement-section">
-      <div class="container statement-grid">
-        <div class="eyebrow">The problem</div>
-        <p>
-          Your agent reads instructions before it reads your code. But today,
-          that process is invisible: filenames conflict, precedence rules differ,
-          and context can change halfway through a session.
-        </p>
-      </div>
-    </section>
-
-    <section id="how-it-works" class="features-section">
-      <div class="container">
-        <div class="section-heading reveal">
-          <div>
-            <div class="eyebrow">One command, full provenance</div>
-            <h2>Stop guessing.<br />Trace the context.</h2>
-          </div>
-          <p>Built to explain the real behavior of each harness, not flatten them into a fictional standard.</p>
-        </div>
-
-        <div class="feature-grid reveal">
-          <article class="feature-card feature-card-wide">
-            <span class="feature-number">01 / Discover</span>
-            <h3>Every file. Every source.</h3>
-            <p>See global, project, directory, local, imported, and lazily activated instructions in one trace.</p>
-            <div class="mini-tree mono" aria-hidden="true">
-              <div><span>~</span><b>CLAUDE.md</b><i>global</i></div>
-              <div><span>└─ repo</span><b>AGENTS.md</b><i>project</i></div>
-              <div><span>&nbsp;&nbsp;└─ api</span><b>CLAUDE.local.md</b><i>local</i></div>
-            </div>
-          </article>
-
-          <article class="feature-card">
-            <span class="feature-number">02 / Explain</span>
-            <h3>Not just what.<br />Why.</h3>
-            <p>Every inclusion, fallback, exclusion, and budget decision carries its reason.</p>
-            <div class="reason-stack mono" aria-hidden="true">
-              <span><i class="ok">+</i> selected <b>ancestor walk</b></span>
-              <span><i class="warn">×</i> shadowed <b>fallback</b></span>
-              <span><i class="info">→</i> activated <b>file access</b></span>
-            </div>
-          </article>
-
-          <article class="feature-card">
-            <span class="feature-number">03 / Compare</span>
-            <h3>Change the harness.<br />See the delta.</h3>
-            <p>Compare Claude Code, Codex, and OpenCode against the same path without changing your repository.</p>
-            <div class="compare-lines mono" aria-hidden="true">
-              <div><span>claude</span><i style="--width: 88%"></i><b>3 files</b></div>
-              <div><span>codex</span><i style="--width: 64%"></i><b>2 files</b></div>
-              <div><span>opencode</span><i style="--width: 76%"></i><b>2 + lazy</b></div>
-            </div>
-          </article>
-
-          <article class="feature-card feature-card-terminal">
-            <span class="feature-number">04 / Inspect</span>
-            <h3>The final prompt,<br />without the mystery.</h3>
-            <p>Render the ordered instruction blocks your selected harness gives the model, with provenance intact.</p>
-            <div class="terminal mono" aria-label="Example command output">
-              <div class="terminal-bar"><span></span><span></span><span></span><b>~/work/acme</b></div>
-              <div class="terminal-body">
-                <p><span>$</span> instructmd trace --codex ./api</p>
-                <p class="dim">boundary&nbsp;&nbsp; /work/acme <i>git root</i></p>
-                <p><b>01</b> ~/.codex/AGENTS.md <i>global</i></p>
-                <p><b>02</b> ./AGENTS.md <i>project</i></p>
-                <p><b>03</b> ./api/AGENTS.override.md <i>directory</i></p>
-                <p class="success">✓ composed 3 blocks · 4.8 KiB</p>
-                <p><span>$</span><em></em></p>
-              </div>
-            </div>
-          </article>
-        </div>
-      </div>
-    </section>
-
-    <section id="landscape" class="landscape-section">
-      <div class="container landscape-grid reveal">
-        <div class="landscape-copy">
-          <div class="eyebrow">The instruction landscape</div>
-          <h2>There is no one<br /><em>AGENTS.md</em> standard.</h2>
-          <p>
-            We traced official documentation and source across 18 coding agents.
-            Their loaders fall into four broad families, each with different boundaries,
-            timing, and composition rules.
-          </p>
-          <a href={visionUrl} target="_blank" rel="noreferrer">
-            See the product vision
-            <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m7 17 10-10M8 7h9v9"/></svg>
-          </a>
-        </div>
-
-        <div class="model-list">
-          {models.map((model, index) => (
-            <article>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <div><h3>{model[0]}</h3><p>{model[1]}</p></div>
-              <small>{model[2]}</small>
-            </article>
-          ))}
-        </div>
-      </div>
-    </section>
-
-    <section class="principles-section">
-      <div class="container principles-grid reveal">
-        <div>
-          <span class="principle-mark">P</span>
-          <h3>Precise, not approximate.</h3>
-          <p>Evaluator behavior is pinned to harness versions and evidence is marked as documented, source-observed, or unknown.</p>
-        </div>
-        <div>
-          <span class="principle-mark">S</span>
-          <h3>Small, fast, local.</h3>
-          <p>A focused CLI designed to inspect your filesystem without turning instruction files into a management platform.</p>
-        </div>
-        <div>
-          <span class="principle-mark">O</span>
-          <h3>Open from day zero.</h3>
-          <p>The research, product direction, and implementation live in public. Follow along or challenge an assumption.</p>
-        </div>
-      </div>
-    </section>
-
-    <section class="cta-section">
-      <div class="cta-grid" aria-hidden="true"></div>
-      <div class="container cta-content reveal">
-        <span class="eyebrow">Work in progress</span>
-        <h2>Make the invisible<br /><em>inspectable.</em></h2>
-        <p>instruct.md is being built in the open. Watch the repository for the first usable release.</p>
-        <div class="hero-actions">
-          <a class="button button-primary" href={repositoryUrl} target="_blank" rel="noreferrer">Watch on GitHub <span>↗</span></a>
-          <a class="button button-secondary" href={visionUrl} target="_blank" rel="noreferrer">Read the vision</a>
-        </div>
-      </div>
+    <section class="support" aria-label="Supported agents">
+      <div class="container"><p><strong>Supports</strong> OpenCode, Claude Code, OpenAI Codex CLI, pi, Gemini CLI, Amp, goose, and Qwen Code.</p></div>
     </section>
   </main>
 
-  <footer>
-    <div class="container footer-inner">
-      <a class="brand" href={homeUrl}><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span><span>instruct<span>.md</span></span></a>
-      <p>Built to explain, not abstract away.</p>
-      <div><a href={repositoryUrl}>GitHub</a><a href={visionUrl}>Vision</a></div>
-    </div>
-  </footer>
+  <footer><div class="container footer-inner"><span>instruct<span>.md</span></span><a href={repositoryUrl} target="_blank" rel="noreferrer">GitHub</a></div></footer>
 
   <script>
     const tabs = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-harness-tab]"));
     const panels = Array.from(document.querySelectorAll<HTMLElement>("[data-harness-panel]"));
-
-    const selectHarness = (id: string) => {
-      for (const tab of tabs) {
-        tab.setAttribute("aria-selected", tab.dataset.harnessTab === id ? "true" : "false");
-      }
-      for (const panel of panels) {
-        panel.hidden = panel.dataset.harnessPanel !== id;
-      }
+    const selectHarness = (id: string, focus = false) => {
+      tabs.forEach((tab) => {
+        const selected = tab.dataset.harnessTab === id;
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        if (selected && focus) tab.focus();
+      });
+      panels.forEach((panel) => { panel.hidden = panel.dataset.harnessPanel !== id; });
     };
-
-    for (const tab of tabs) {
+    tabs.forEach((tab, index) => {
       tab.addEventListener("click", () => selectHarness(tab.dataset.harnessTab ?? "claude"));
-    }
+      tab.addEventListener("keydown", (event) => {
+        if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+        event.preventDefault();
+        const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1 : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+        selectHarness(tabs[next].dataset.harnessTab ?? "claude", true);
+      });
+    });
 
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const reveals = Array.from(document.querySelectorAll<HTMLElement>(".reveal"));
-    if (!reduceMotion && "IntersectionObserver" in window) {
-      for (const element of reveals) element.classList.add("reveal-pending");
-      const observer = new IntersectionObserver((entries) => {
-        for (const entry of entries) {
-          if (entry.isIntersecting) {
-            entry.target.classList.add("reveal-visible");
-            observer.unobserve(entry.target);
-          }
-        }
-      }, { threshold: 0.12, rootMargin: "0px 0px -5%" });
-      for (const element of reveals) observer.observe(element);
-    }
+    const copyButton = document.querySelector<HTMLButtonElement>("[data-copy-command]");
+    const copyLabel = document.querySelector<HTMLElement>("[data-copy-label]");
+    const copyStatus = document.querySelector<HTMLElement>("[data-copy-status]");
+    copyButton?.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText("cargo install instructmd");
+        if (copyLabel) copyLabel.textContent = "Copied";
+        if (copyStatus) copyStatus.textContent = "Command copied to clipboard.";
+      } catch {
+        if (copyStatus) copyStatus.textContent = "Copy failed. Select the command and copy it manually.";
+      }
+      window.setTimeout(() => { if (copyLabel) copyLabel.textContent = "Copy"; }, 1800);
+    });
   </script>
 </Layout>
 
 <style>
-  .site-header {
-    position: sticky;
-    z-index: 10;
-    top: 0;
-    border-bottom: 1px solid var(--line);
-    background: rgba(11, 13, 12, 0.78);
-    backdrop-filter: blur(16px);
-  }
-
-  .nav-shell {
-    display: flex;
-    height: 62px;
-    align-items: center;
-    justify-content: space-between;
-  }
-
-  .brand {
-    display: inline-flex;
-    align-items: center;
-    gap: 10px;
-    font-size: 16px;
-    font-weight: 600;
-    letter-spacing: -0.03em;
-  }
-
-  .brand > span:last-child > span {
-    color: var(--ink-3);
-  }
-
-  .brand-mark {
-    display: grid;
-    width: 22px;
-    height: 22px;
-    grid-template-columns: repeat(3, 1fr);
-    align-items: end;
-    gap: 2px;
-    padding: 4px;
-    border: 1px solid var(--line-strong);
-    border-radius: 5px;
-  }
-
-  .brand-mark i {
-    display: block;
-    background: var(--acid);
-  }
-
-  .brand-mark i:nth-child(1) { height: 6px; }
-  .brand-mark i:nth-child(2) { height: 12px; }
-  .brand-mark i:nth-child(3) { height: 9px; }
-
-  nav {
-    display: flex;
-    align-items: center;
-    gap: 28px;
-    color: var(--ink-2);
-    font-size: 13px;
-  }
-
-  nav a {
-    transition: color 160ms ease;
-  }
-
-  nav a:hover { color: var(--ink); }
-
-  .nav-github {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 10px;
-    border: 1px solid var(--line);
-    border-radius: 6px;
-    color: var(--ink);
-  }
-
-  .hero {
-    position: relative;
-    overflow: hidden;
-    padding: 110px 0 78px;
-  }
-
-  .hero-grid,
-  .cta-grid {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;
-    background-image:
-      linear-gradient(var(--line) 1px, transparent 1px),
-      linear-gradient(90deg, var(--line) 1px, transparent 1px);
-    background-size: 64px 64px;
-    mask-image: radial-gradient(ellipse 60% 52% at 50% 22%, black, transparent 80%);
-    opacity: 0.48;
-  }
-
-  .hero-copy {
-    position: relative;
-    z-index: 1;
-    text-align: center;
-  }
-
-  .status-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-bottom: 28px;
-    padding: 6px 10px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    color: var(--ink-2);
-    background: rgba(16, 19, 17, 0.72);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-  }
-
-  .status-pill span {
-    width: 6px;
-    height: 6px;
-    border-radius: 99px;
-    background: var(--acid);
-    box-shadow: 0 0 0 4px var(--acid-soft);
-    animation: statusPulse 2.4s ease-in-out infinite;
-  }
-
-  .hero h1,
-  .cta-content h2 {
-    max-width: 980px;
-    margin: 0 auto;
-    font-size: clamp(52px, 8.2vw, 104px);
-    font-weight: 500;
-    letter-spacing: -0.065em;
-    line-height: 0.92;
-  }
-
-  .hero h1 em,
-  .cta-content h2 em,
-  .landscape-copy h2 em {
-    color: var(--acid);
-    font-style: normal;
-  }
-
-  .hero-copy > p {
-    max-width: 630px;
-    margin: 30px auto 0;
-    color: var(--ink-2);
-    font-size: clamp(17px, 2vw, 20px);
-    line-height: 1.55;
-    text-wrap: balance;
-  }
-
-  .hero-copy > p strong {
-    color: var(--ink);
-    font-weight: 500;
-  }
-
-  .hero-actions {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 10px;
-    margin-top: 34px;
-  }
-
-  .demo-wrap {
-    position: relative;
-    z-index: 2;
-    margin-top: 90px;
-  }
-
-  .demo-glow {
-    position: absolute;
-    inset: 10% 15%;
-    filter: blur(70px);
-    background: rgba(216, 255, 121, 0.13);
-  }
-
-  .demo-window {
-    position: relative;
-    overflow: hidden;
-    border: 1px solid var(--line-strong);
-    border-radius: 14px;
-    background: rgba(9, 11, 10, 0.96);
-    box-shadow: 0 45px 100px -45px #000, 0 0 0 1px rgba(0, 0, 0, 0.8);
-  }
-
-  .window-bar {
-    display: grid;
-    min-height: 46px;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: center;
-    padding: 0 16px;
-    border-bottom: 1px solid var(--line);
-    background: #111411;
-    font-family: var(--font-mono);
-    font-size: 10px;
-  }
-
-  .window-dots { display: flex; gap: 6px; }
-  .window-dots span { width: 8px; height: 8px; border-radius: 50%; background: #3a3f3a; }
-  .window-path { display: flex; align-items: center; gap: 8px; color: var(--ink-3); }
-  .window-path b { color: var(--ink-2); font-weight: 400; }
-  .window-state { justify-self: end; color: var(--acid); text-transform: uppercase; letter-spacing: 0.08em; }
-
-  .harness-tabs {
-    display: flex;
-    gap: 4px;
-    padding: 10px;
-    border-bottom: 1px solid var(--line);
-    background: #0d100e;
-  }
-
-  .harness-tabs button {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    padding: 7px 11px;
-    border: 1px solid transparent;
-    border-radius: 5px;
-    color: var(--ink-3);
-    background: transparent;
-    cursor: pointer;
-    font-family: var(--font-mono);
-    font-size: 11px;
-  }
-
-  .harness-tabs button:hover { color: var(--ink-2); }
-  .harness-tabs button[aria-selected="true"] { border-color: var(--line); color: var(--ink); background: var(--panel-raised); }
-
-  .harness-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ink-3); }
-  .harness-dot.claude { background: var(--amber); }
-  .harness-dot.codex { background: var(--ink); }
-  .harness-dot.opencode { background: var(--blue); }
-
-  .harness-panel {
-    display: grid;
-    min-height: 390px;
-    grid-template-columns: 1.15fr 0.82fr 1.05fr;
-  }
-
-  .harness-panel[hidden] { display: none; }
-  .source-pane, .flow-pane, .context-pane { min-width: 0; padding: 24px; }
-  .flow-pane, .context-pane { border-left: 1px solid var(--line); }
-
-  .pane-title {
-    display: flex;
-    align-items: center;
-    gap: 9px;
-    margin-bottom: 23px;
-    color: var(--ink-2);
-    font-family: var(--font-mono);
-    font-size: 10px;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-  }
-
-  .pane-title span { color: var(--acid); }
-  .boundary-label { margin-bottom: 20px; color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; }
-
-  .file-list { display: flex; flex-direction: column; gap: 3px; }
-  .file-row {
-    display: grid;
-    min-height: 50px;
-    grid-template-columns: 16px 15px minmax(0, 1fr) auto;
-    align-items: center;
-    gap: 8px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 5px;
-    color: var(--ink-2);
-    background: rgba(244, 241, 232, 0.025);
-    font-family: var(--font-mono);
-    font-size: 10px;
-  }
-
-  .file-row.is-shadowed { opacity: 0.42; text-decoration: line-through; }
-  .tree-guide { color: var(--ink-3); }
-  .file-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .scope { padding: 2px 5px; border: 1px solid var(--line); border-radius: 3px; color: var(--ink-3); font-size: 8px; text-transform: uppercase; }
-
-  .flow-pane { display: flex; flex-direction: column; align-items: center; }
-  .flow-pane .pane-title { align-self: stretch; }
-  .flow-line { display: grid; width: 100%; height: 60px; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 7px; color: var(--ink-3); font-family: var(--font-mono); font-size: 8px; text-transform: uppercase; }
-  .flow-line i { height: 1px; background: linear-gradient(90deg, transparent, var(--line-strong)); }
-  .flow-line i:last-child { background: linear-gradient(90deg, var(--line-strong), transparent); }
-  .flow-node { width: 100%; padding: 12px 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink-2); background: var(--panel); font-family: var(--font-mono); font-size: 10px; text-align: center; }
-  .flow-node.accent { border-color: rgba(216, 255, 121, 0.3); color: var(--acid); background: var(--acid-soft); }
-  .flow-pane > p { margin-top: auto; padding-top: 22px; color: var(--ink-3); font-size: 11px; line-height: 1.55; }
-
-  .context-pane { background: rgba(255, 255, 255, 0.012); }
-  .context-meta { display: flex; justify-content: space-between; margin-bottom: 12px; color: var(--ink-3); font-family: var(--font-mono); font-size: 8px; text-transform: uppercase; }
-  .context-pane ol { list-style: none; padding: 0; border-top: 1px solid var(--line); }
-  .context-pane li { display: grid; grid-template-columns: 30px 1fr; gap: 10px; padding: 14px 0; border-bottom: 1px solid var(--line); }
-  .context-pane li > span { color: var(--acid); font-family: var(--font-mono); font-size: 9px; }
-  .context-pane li p { color: var(--ink-2); font-family: var(--font-mono); font-size: 10px; }
-  .context-pane li.is-last p { color: var(--ink); }
-  .context-cursor { display: flex; align-items: center; gap: 8px; margin-top: 20px; color: var(--acid); font-family: var(--font-mono); font-size: 11px; }
-  .context-cursor i { display: block; width: 6px; height: 12px; background: var(--acid); animation: blink 1.1s step-end infinite; }
-
-  .demo-caption { display: flex; justify-content: center; align-items: center; gap: 13px; margin-top: 20px; color: var(--ink-3); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase; }
-  .demo-caption i { width: 32px; height: 1px; background: var(--line-strong); }
-
-  .statement-section,
-  .features-section,
-  .landscape-section,
-  .principles-section {
-    border-top: 1px solid var(--line);
-  }
-
-  .statement-section { padding: 100px 0; }
-  .statement-grid { display: grid; grid-template-columns: 0.55fr 1.45fr; gap: 60px; align-items: start; }
-  .statement-grid p { max-width: 800px; font-size: clamp(27px, 4vw, 44px); font-weight: 500; letter-spacing: -0.035em; line-height: 1.2; text-wrap: balance; }
-
-  .features-section { padding: 120px 0; }
-  .section-heading { display: flex; align-items: end; justify-content: space-between; gap: 50px; margin-bottom: 60px; }
-  .section-heading h2, .landscape-copy h2 { margin-top: 18px; font-size: clamp(39px, 5vw, 62px); font-weight: 500; letter-spacing: -0.05em; line-height: 0.98; }
-  .section-heading > p { max-width: 400px; color: var(--ink-2); font-size: 17px; }
-
-  .feature-grid { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--line); border-left: 1px solid var(--line); }
-  .feature-card { position: relative; min-height: 420px; overflow: hidden; padding: 34px; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); background: linear-gradient(145deg, rgba(244, 241, 232, 0.018), transparent 60%); }
-  .feature-number { color: var(--acid); font-family: var(--font-mono); font-size: 9px; letter-spacing: 0.1em; text-transform: uppercase; }
-  .feature-card h3 { margin: 30px 0 14px; font-size: clamp(25px, 3vw, 34px); font-weight: 500; letter-spacing: -0.04em; line-height: 1.08; }
-  .feature-card > p { max-width: 450px; color: var(--ink-2); font-size: 15px; }
-
-  .mini-tree, .reason-stack, .compare-lines { position: absolute; right: 34px; bottom: 34px; left: 34px; }
-  .mini-tree { display: flex; flex-direction: column; gap: 5px; }
-  .mini-tree div { display: grid; min-height: 38px; grid-template-columns: 1fr 1.3fr auto; align-items: center; gap: 12px; padding: 0 12px; border: 1px solid var(--line); border-radius: 4px; color: var(--ink-3); background: var(--panel); font-size: 9px; }
-  .mini-tree b { overflow: hidden; color: var(--ink-2); font-weight: 400; text-overflow: ellipsis; }
-  .mini-tree i { color: var(--acid); font-size: 8px; font-style: normal; text-transform: uppercase; }
-
-  .reason-stack { display: flex; flex-direction: column; }
-  .reason-stack span { display: grid; grid-template-columns: 25px 70px 1fr; padding: 11px 0; border-top: 1px solid var(--line); color: var(--ink-3); font-size: 9px; }
-  .reason-stack b { color: var(--ink-2); font-weight: 400; }
-  .reason-stack .ok { color: var(--acid); } .reason-stack .warn { color: var(--amber); } .reason-stack .info { color: var(--blue); }
-
-  .compare-lines { display: flex; flex-direction: column; gap: 15px; }
-  .compare-lines div { display: grid; grid-template-columns: 70px 1fr 55px; align-items: center; gap: 10px; color: var(--ink-3); font-size: 9px; }
-  .compare-lines i { position: relative; height: 4px; background: var(--line); }
-  .compare-lines i::before { display: block; width: var(--width); height: 100%; content: ""; background: var(--acid); }
-  .compare-lines b { color: var(--ink-2); font-weight: 400; text-align: right; }
-
-  .feature-card-terminal { min-height: 480px; }
-  .terminal { position: absolute; right: 34px; bottom: 34px; left: 34px; overflow: hidden; border: 1px solid var(--line); border-radius: 7px; background: var(--bg-deep); font-size: 9px; }
-  .terminal-bar { display: flex; height: 34px; align-items: center; gap: 5px; padding: 0 10px; border-bottom: 1px solid var(--line); background: var(--panel); }
-  .terminal-bar span { width: 6px; height: 6px; border-radius: 50%; background: #3a3f3a; }
-  .terminal-bar b { margin-inline: auto; color: var(--ink-3); font-weight: 400; }
-  .terminal-body { display: flex; flex-direction: column; gap: 7px; padding: 15px; }
-  .terminal-body p { color: var(--ink-2); white-space: nowrap; }
-  .terminal-body p > span { margin-right: 7px; color: var(--acid); }
-  .terminal-body p > b { display: inline-block; width: 20px; color: var(--acid); font-weight: 400; }
-  .terminal-body p > i { color: var(--ink-3); font-style: normal; }
-  .terminal-body .dim { color: var(--ink-3); }
-  .terminal-body .success { margin-top: 4px; color: var(--acid); }
-  .terminal-body em { display: inline-block; width: 5px; height: 10px; background: var(--ink); animation: blink 1.1s step-end infinite; }
-
-  .landscape-section { padding: 120px 0; background: var(--bg-deep); }
-  .landscape-grid { display: grid; grid-template-columns: 0.8fr 1.2fr; gap: 100px; align-items: center; }
-  .landscape-copy > p { margin: 28px 0; color: var(--ink-2); font-size: 17px; line-height: 1.65; }
-  .landscape-copy > a { display: inline-flex; align-items: center; gap: 8px; padding-bottom: 4px; border-bottom: 1px solid var(--line-strong); color: var(--acid); font-family: var(--font-mono); font-size: 11px; }
-  .model-list { border-top: 1px solid var(--line); }
-  .model-list article { display: grid; min-height: 110px; grid-template-columns: 45px 1fr auto; align-items: center; gap: 20px; border-bottom: 1px solid var(--line); }
-  .model-list article > span { color: var(--acid); font-family: var(--font-mono); font-size: 9px; }
-  .model-list h3 { margin-bottom: 5px; font-size: 18px; font-weight: 500; }
-  .model-list p, .model-list small { color: var(--ink-3); font-size: 11px; }
-  .model-list small { max-width: 130px; text-align: right; }
-
-  .principles-section { padding: 0; }
-  .principles-grid { display: grid; grid-template-columns: repeat(3, 1fr); }
-  .principles-grid > div { min-height: 300px; padding: 48px 35px; border-left: 1px solid var(--line); }
-  .principles-grid > div:last-child { border-right: 1px solid var(--line); }
-  .principle-mark { display: grid; width: 34px; height: 34px; place-items: center; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--acid); font-family: var(--font-mono); font-size: 11px; }
-  .principles-grid h3 { margin: 64px 0 12px; font-size: 21px; font-weight: 500; letter-spacing: -0.025em; }
-  .principles-grid p { color: var(--ink-2); font-size: 14px; line-height: 1.6; }
-
-  .cta-section { position: relative; overflow: hidden; padding: 145px 0; border-top: 1px solid var(--line); text-align: center; }
-  .cta-grid { mask-image: radial-gradient(ellipse 65% 90% at 50% 50%, black, transparent 82%); }
-  .cta-content { position: relative; z-index: 1; }
-  .cta-content h2 { margin-top: 24px; font-size: clamp(52px, 7vw, 88px); }
-  .cta-content > p { max-width: 520px; margin: 25px auto 0; color: var(--ink-2); font-size: 17px; }
-
-  footer { border-top: 1px solid var(--line); }
-  .footer-inner { display: grid; min-height: 110px; grid-template-columns: 1fr auto 1fr; align-items: center; color: var(--ink-3); font-size: 11px; }
-  .footer-inner > div { display: flex; justify-content: flex-end; gap: 22px; }
-  .footer-inner a:hover { color: var(--ink); }
-
-  .reveal-pending { opacity: 0; filter: blur(4px); transform: translateY(18px); transition: opacity 700ms ease, filter 700ms ease, transform 700ms ease; }
-  .reveal-visible { opacity: 1; filter: blur(0); transform: translateY(0); }
-
-  @keyframes blink { 50% { opacity: 0; } }
-  @keyframes statusPulse { 50% { opacity: 0.55; box-shadow: 0 0 0 7px rgba(216, 255, 121, 0.04); } }
-
-  @media (max-width: 900px) {
-    .hero { padding-top: 85px; }
-    .harness-panel { grid-template-columns: 1fr 1fr; }
-    .source-pane { grid-column: 1 / -1; border-bottom: 1px solid var(--line); }
-    .flow-pane { border-left: 0; }
-    .statement-grid, .landscape-grid { grid-template-columns: 1fr; gap: 45px; }
-    .section-heading { align-items: start; flex-direction: column; }
-    .landscape-grid { gap: 70px; }
-    .principles-grid { grid-template-columns: 1fr; }
-    .principles-grid > div { min-height: auto; border-right: 1px solid var(--line); border-bottom: 1px solid var(--line); }
-    .principles-grid h3 { margin-top: 35px; }
-  }
-
-  @media (max-width: 640px) {
-    .site-header nav > a:not(.nav-github) { display: none; }
-    .nav-github span { display: none; }
-    .nav-github { padding: 7px; }
-    .hero { padding: 68px 0 60px; }
-    .hero h1 { font-size: clamp(46px, 15vw, 68px); line-height: 0.95; }
-    .hero-copy > p { font-size: 16px; }
-    .hero-actions { align-items: stretch; flex-direction: column; }
-    .hero-actions .button { width: 100%; }
-    .demo-wrap { width: calc(100% - 16px); margin-top: 65px; }
-    .window-bar { grid-template-columns: 1fr auto; }
-    .window-path { display: none; }
-    .harness-tabs { overflow-x: auto; }
-    .harness-tabs button { flex: 0 0 auto; }
-    .harness-panel { display: block; min-height: auto; }
-    .harness-panel[hidden] { display: none; }
-    .source-pane, .flow-pane, .context-pane { padding: 19px; }
-    .flow-pane, .context-pane { border-top: 1px solid var(--line); border-left: 0; }
-    .flow-pane { min-height: 300px; }
-    .context-pane { min-height: 300px; }
-    .file-row { grid-template-columns: 13px 13px minmax(0, 1fr); }
-    .scope { display: none; }
-    .demo-caption { font-size: 8px; }
-    .statement-section, .features-section, .landscape-section { padding: 80px 0; }
-    .statement-grid { gap: 30px; }
-    .statement-grid p { font-size: 28px; }
-    .section-heading { gap: 25px; margin-bottom: 40px; }
-    .feature-grid { grid-template-columns: 1fr; }
-    .feature-card { min-height: 390px; padding: 26px; }
-    .mini-tree, .reason-stack, .compare-lines, .terminal { right: 26px; bottom: 26px; left: 26px; }
-    .mini-tree div { grid-template-columns: 0.7fr 1.3fr; }
-    .mini-tree i { display: none; }
-    .feature-card-terminal { min-height: 485px; }
-    .terminal { font-size: 8px; }
-    .terminal-body { overflow-x: auto; }
-    .model-list article { grid-template-columns: 32px 1fr; padding: 22px 0; }
-    .model-list small { grid-column: 2; max-width: none; text-align: left; }
-    .principles-grid { width: 100%; }
-    .principles-grid > div { padding: 38px 28px; border-left: 0; border-right: 0; }
-    .cta-section { padding: 100px 0; }
-    .footer-inner { grid-template-columns: 1fr auto; }
-    .footer-inner > p { display: none; }
-  }
+  .site-header { border-bottom: 1px solid var(--line); background: rgba(11, 13, 12, .84); }
+  .nav-shell, .footer-inner { min-height: 72px; display: flex; align-items: center; justify-content: space-between; }
+  .brand, footer span { display: inline-flex; align-items: center; gap: 9px; font: 500 17px var(--font-mono); letter-spacing: -.06em; }
+  .brand > span:last-child span, footer span span { color: var(--acid); }
+  .brand-mark { display: flex; gap: 3px; align-items: end; height: 16px; }
+  .brand-mark i { width: 3px; background: var(--acid); } .brand-mark i:nth-child(1) { height: 7px; } .brand-mark i:nth-child(2) { height: 13px; } .brand-mark i:nth-child(3) { height: 10px; }
+  .github { display: inline-flex; align-items: center; gap: 7px; color: var(--ink-2); font: 500 14px var(--font-mono); } .github:hover, footer a:hover { color: var(--acid); }
+  .hero { padding: clamp(84px, 14vw, 176px) 0 clamp(74px, 11vw, 140px); }
+  .hero-copy { max-width: 820px; }
+  .kicker { color: var(--acid); font: 500 12px var(--font-mono); letter-spacing: .1em; text-transform: uppercase; }
+  h1, h2 { font-weight: 500; letter-spacing: -.065em; line-height: .98; } h1 { margin-top: 22px; font-size: clamp(48px, 8.3vw, 112px); } h1 em { color: var(--acid); font-style: normal; } h2 { font-size: clamp(32px, 4.6vw, 58px); }
+  .intro { max-width: 650px; margin-top: 30px; color: var(--ink-2); font-size: clamp(16px, 2vw, 20px); line-height: 1.55; } .intro code { color: var(--ink); font: 500 .88em var(--font-mono); }
+  .install-command { max-width: 510px; min-height: 62px; display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 42px; padding: 8px 8px 8px 20px; border: 1px solid rgba(216,255,121,.64); background: rgba(216,255,121,.075); box-shadow: 0 20px 70px -42px var(--acid); } .install-command code { font: 500 16px var(--font-mono); color: var(--acid); } .install-command button { min-height: 44px; border: 0; padding: 0 17px; color: var(--bg-deep); background: var(--acid); cursor: pointer; font: 600 14px var(--font-sans); } .install-command button:hover { background: #ebffb4; }
+  .demonstration { padding: clamp(60px, 9vw, 112px) 0; border-top: 1px solid var(--line); background: linear-gradient(90deg, rgba(216,255,121,.035), transparent 45%); } .section-heading { margin-bottom: 35px; } .section-heading h2 { margin-top: 14px; }
+  .demo-window { overflow: hidden; border: 1px solid var(--line-strong); background: var(--panel); box-shadow: 0 30px 90px -55px #000; } .window-bar { min-height: 48px; display: flex; align-items: center; gap: 11px; padding: 0 18px; border-bottom: 1px solid var(--line); color: var(--ink-3); font: 12px var(--font-mono); } .window-bar > span { width: 8px; height: 8px; border-radius: 50%; background: var(--acid); } .window-bar b { margin-left: auto; color: var(--ink-2); font-weight: 400; }
+  .harness-tabs { display: flex; overflow-x: auto; border-bottom: 1px solid var(--line); } .harness-tabs button { flex: 1 0 130px; min-height: 52px; border: 0; border-right: 1px solid var(--line); color: var(--ink-3); background: transparent; cursor: pointer; font: 500 14px var(--font-mono); } .harness-tabs button[aria-selected="true"] { color: var(--bg-deep); background: var(--acid); }
+  .harness-panel { padding: clamp(20px, 4vw, 46px); } .trace-label { display: flex; justify-content: space-between; gap: 20px; color: var(--ink-3); font: 12px var(--font-mono); text-transform: uppercase; letter-spacing: .06em; } .trace-label span:first-child { color: var(--acid); }
+  .layer-list { margin-top: 20px; padding: 0; border-top: 1px solid var(--line); list-style: none; } .layer-list li { display: grid; grid-template-columns: 40px minmax(190px, 1fr) 145px minmax(180px, .8fr); gap: 14px; align-items: center; padding: 18px 0; border-bottom: 1px solid var(--line); font-size: 15px; } .layer-number { color: var(--acid); font: 13px var(--font-mono); } .layer-list code { overflow-wrap: anywhere; color: var(--ink); font: 14px var(--font-mono); } .layer-scope, .layer-state { color: var(--ink-2); } .layer-state { font-size: 14px; } .is-shadowed { opacity: .55; } .is-shadowed .layer-state { color: var(--amber); }
+  .trace-note { margin-top: 18px; color: var(--ink-2); font-size: 15px; } .support { padding: 46px 0; border-top: 1px solid var(--line); } .support p { color: var(--ink-2); font-size: 16px; } .support strong { color: var(--acid); font: 500 13px var(--font-mono); letter-spacing: .06em; text-transform: uppercase; } footer { border-top: 1px solid var(--line); } .footer-inner { min-height: 78px; color: var(--ink-3); font-size: 14px; } footer a { font: 14px var(--font-mono); }
+  .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+  @media (max-width: 700px) { .hero { padding-top: 74px; } .layer-list li { grid-template-columns: 29px 1fr; gap: 8px 12px; } .layer-scope { grid-column: 2; } .layer-state { grid-column: 2; } .trace-label span:last-child { display: none; } }
+  @media (max-width: 430px) { .nav-shell { min-height: 62px; } .install-command { padding-left: 14px; } .install-command code { font-size: 13px; } .install-command button { padding: 0 12px; } .window-bar b { display: none; } }
 </style>

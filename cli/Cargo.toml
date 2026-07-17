@@ -2,6 +2,14 @@
 name = "instructmd"
 version = "0.1.0"
 edition = "2021"
+description = "Inspect coding-agent instruction-file startup resolution"
+repository = "https://github.com/mokronos/instructmd"
+homepage = "https://mokronos.github.io/instructmd/"
+readme = "README.md"
+keywords = ["coding-agents", "agents-md", "claude", "codex", "cli"]
+categories = ["command-line-utilities", "development-tools"]
+license = "MIT"
+include = ["/src", "/tests", "/Cargo.toml", "/README.md", "/LICENSE"]
 
 [dependencies]
 clap = { version = "4.5", features = ["derive"] }

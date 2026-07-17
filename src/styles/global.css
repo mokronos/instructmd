@@ -40,16 +40,13 @@
     --bg: #0b0d0c;
     --bg-deep: #070908;
     --panel: #101311;
-    --panel-raised: #151916;
     --ink: #f4f1e8;
     --ink-2: #b5b8af;
     --ink-3: #747a72;
     --line: rgba(244, 241, 232, 0.11);
     --line-strong: rgba(244, 241, 232, 0.2);
     --acid: #d8ff79;
-    --acid-soft: rgba(216, 255, 121, 0.11);
     --amber: #f3ad62;
-    --blue: #79b8ff;
     --font-sans: "DM Sans", sans-serif;
     --font-mono: "IBM Plex Mono", monospace;
     color-scheme: dark;
@@ -100,72 +97,6 @@
   .container {
     width: min(1160px, calc(100% - 40px));
     margin-inline: auto;
-  }
-
-  .mono {
-    font-family: var(--font-mono);
-  }
-
-  .eyebrow {
-    display: inline-flex;
-    align-items: center;
-    gap: 9px;
-    color: var(--acid);
-    font-family: var(--font-mono);
-    font-size: 11px;
-    font-weight: 500;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-  }
-
-  .eyebrow::before {
-    width: 16px;
-    height: 1px;
-    content: "";
-    background: currentColor;
-  }
-
-  .button {
-    display: inline-flex;
-    min-height: 44px;
-    align-items: center;
-    justify-content: center;
-    gap: 9px;
-    padding: 0 18px;
-    border: 1px solid transparent;
-    border-radius: 8px;
-    font-size: 14px;
-    font-weight: 600;
-    transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
-  }
-
-  .button:hover {
-    transform: translateY(-2px);
-  }
-
-  .button-primary {
-    color: #0b0d0c;
-    background: var(--acid);
-    box-shadow: 0 12px 40px -18px rgba(216, 255, 121, 0.75);
-  }
-
-  .button-secondary {
-    border-color: var(--line-strong);
-    color: var(--ink);
-    background: rgba(244, 241, 232, 0.03);
-  }
-
-  .button-secondary:hover {
-    border-color: rgba(216, 255, 121, 0.45);
-    background: var(--acid-soft);
-  }
-
-  .arrow {
-    transition: transform 160ms ease;
-  }
-
-  a:hover .arrow {
-    transform: translate(2px, -2px);
   }
 
   @media (max-width: 640px) {

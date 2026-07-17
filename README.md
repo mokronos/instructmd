@@ -42,7 +42,13 @@ Options:
 | `-h`, `--help` | Print help. |
 | `-V`, `--version` | Print version. |
 
-## Install from this checkout
+## Install
+
+```bash
+cargo install instructmd
+```
+
+### Install from this checkout
 
 Prerequisite: a current Rust toolchain with Cargo.
 
