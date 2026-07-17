@@ -38,16 +38,29 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     Ok(())
 }
-const PALETTE: [AnsiColor; 6] = [
-    AnsiColor::Magenta,
-    AnsiColor::Cyan,
-    AnsiColor::Green,
-    AnsiColor::Yellow,
-    AnsiColor::Blue,
-    AnsiColor::BrightMagenta,
+const PALETTE: [(AnsiColor, AnsiColor); 6] = [
+    (AnsiColor::BrightMagenta, AnsiColor::Magenta),
+    (AnsiColor::BrightCyan, AnsiColor::Cyan),
+    (AnsiColor::BrightGreen, AnsiColor::Green),
+    (AnsiColor::BrightYellow, AnsiColor::Yellow),
+    (AnsiColor::BrightBlue, AnsiColor::Blue),
+    (AnsiColor::BrightRed, AnsiColor::Red),
 ];
-fn layer_style(layer: usize) -> Style {
-    Style::new().fg_color(Some(PALETTE[layer % PALETTE.len()].into()))
+fn layer_styles(layer: usize) -> (Style, Style) {
+    let (bright, normal) = PALETTE[layer % PALETTE.len()];
+    (
+        Style::new()
+            .fg_color(Some(bright.into()))
+            .effects(Effects::BOLD),
+        Style::new().fg_color(Some(normal.into())),
+    )
+}
+fn tilde(path: &std::path::Path) -> String {
+    let s = path.display().to_string();
+    match std::env::var("HOME") {
+        Ok(home) if !home.is_empty() && s.starts_with(&home) => s.replacen(&home, "~", 1),
+        _ => s,
+    }
 }
 fn styled(s: impl std::fmt::Display, style: Style, color: bool) -> String {
     if color {
@@ -66,28 +79,29 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
         );
     }
     for (i, c) in selected.iter().enumerate() {
-        let style = layer_style(i);
+        let (header, body) = layer_styles(i);
+        println!();
         let h = format!(
-            "━━ [{}] {} {} — {} ━━━━━━━━━━━━",
+            "▌ [{}] {} {} — {}",
             i + 1,
             c.scope,
-            c.path.display(),
+            tilde(&c.path),
             c.reason
         );
-        println!("{}", styled(h, style.effects(Effects::BOLD), color));
+        println!("{}", styled(h, header, color));
         if !no_content {
             match fs::read_to_string(&c.path) {
                 Ok(s) => {
                     let s = trim_trailing_blank_lines(&s);
                     if s.is_empty() {
-                        println!("{}", styled("(empty file)", style, color))
+                        println!("{}", styled("(empty file)", body, color))
                     } else {
-                        println!("{}", styled(s, style, color))
+                        println!("{}", styled(s, body, color))
                     }
                 }
                 Err(e) => println!(
                     "{}",
-                    styled(format!("(could not read file: {e})"), style, color)
+                    styled(format!("(could not read file: {e})"), body, color)
                 ),
             }
         }
