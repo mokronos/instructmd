@@ -70,12 +70,17 @@ fn styled(s: impl std::fmt::Display, style: Style, color: bool) -> String {
     }
 }
 fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
-    let badge = styled(
-        format!(" instructmd · {} ", r.agent),
+    let banner = styled(
+        format!(
+            " instructmd · {} · {} — {} ",
+            r.agent,
+            tilde(&r.dir),
+            r.boundary
+        ),
         Style::new().effects(Effects::INVERT | Effects::BOLD),
         color,
     );
-    println!("{badge} {} — {}", tilde(&r.dir), r.boundary);
+    println!("{banner}");
     let selected: Vec<_> = r.selected().collect();
     if selected.is_empty() {
         println!(
