@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="A visual comparison of how popular coding agents discover and compose persistent instruction files.">
+  <title>Instruction Atlas — Coding Agent Context Topologies</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --ink: #ece8dc;
+      --muted: #9d9a91;
+      --paper: #11120f;
+      --panel: #181a16;
+      --panel-2: #20221d;
+      --line: #3a3d34;
+      --acid: #d9ff57;
+      --orange: #ff8a4c;
+      --cyan: #64d7dc;
+      --lavender: #b6a8ff;
+      --red: #ff6f61;
+      --shadow: 0 18px 50px rgb(0 0 0 / 35%);
+      --display: Georgia, "Times New Roman", serif;
+      --mono: "IBM Plex Mono", "Liberation Mono", "Courier New", monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      margin: 0;
+      color: var(--ink);
+      background:
+        linear-gradient(rgb(217 255 87 / 3%) 1px, transparent 1px),
+        linear-gradient(90deg, rgb(217 255 87 / 3%) 1px, transparent 1px),
+        radial-gradient(circle at 85% 8%, rgb(100 215 220 / 9%), transparent 24rem),
+        var(--paper);
+      background-size: 32px 32px, 32px 32px, auto, auto;
+      font-family: var(--mono);
+      line-height: 1.55;
+    }
+
+    a { color: inherit; }
+    button, input, select { font: inherit; }
+
+    .shell {
+      width: min(1440px, calc(100% - 40px));
+      margin: 0 auto;
+    }
+
+    .masthead {
+      min-height: 88vh;
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(320px, .65fr);
+      align-items: center;
+      gap: clamp(40px, 7vw, 120px);
+      padding: 90px 0 70px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .masthead > * { min-width: 0; }
+
+    .eyebrow,
+    .section-kicker {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 0 0 24px;
+      color: var(--acid);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: .14em;
+      text-transform: uppercase;
+    }
+
+    .eyebrow::before,
+    .section-kicker::before {
+      content: "";
+      width: 42px;
+      height: 2px;
+      background: currentColor;
+    }
+
+    h1, h2, h3, p { margin-top: 0; }
+
+    h1 {
+      max-width: 940px;
+      margin-bottom: 28px;
+      font-family: var(--display);
+      font-size: clamp(64px, 10vw, 150px);
+      font-weight: 400;
+      letter-spacing: -.07em;
+      line-height: .76;
+    }
+
+    h1 em {
+      display: block;
+      color: var(--acid);
+      font-weight: 400;
+    }
+
+    .lede {
+      max-width: 760px;
+      margin-bottom: 32px;
+      color: #c7c4ba;
+      font-family: var(--display);
+      font-size: clamp(20px, 2vw, 28px);
+      line-height: 1.3;
+    }
+
+    .header-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 10px 16px;
+      border: 1px solid var(--line);
+      text-decoration: none;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      font-size: 12px;
+      transition: background .2s, color .2s, transform .2s;
+    }
+
+    .button:hover { transform: translateY(-2px); border-color: var(--acid); }
+    .button.primary { color: #11120f; background: var(--acid); border-color: var(--acid); }
+
+    .specimen {
+      position: relative;
+      padding: 34px;
+      border: 1px solid var(--line);
+      background: rgb(24 26 22 / 92%);
+      box-shadow: var(--shadow);
+      transform: rotate(1.5deg);
+    }
+
+    .specimen::before {
+      content: "FIG. 01 / NOT TO SCALE";
+      position: absolute;
+      top: -25px;
+      right: 0;
+      color: var(--muted);
+      font-size: 10px;
+      letter-spacing: .12em;
+    }
+
+    .tree { display: grid; gap: 13px; }
+
+    .node {
+      position: relative;
+      padding: 11px 14px 11px 42px;
+      border: 1px solid var(--line);
+      color: var(--muted);
+      background: var(--paper);
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .node::before {
+      content: "";
+      position: absolute;
+      left: 17px;
+      top: 50%;
+      width: 9px;
+      height: 9px;
+      border: 1px solid currentColor;
+      border-radius: 50%;
+      transform: translateY(-50%);
+    }
+
+    .node.active { color: var(--ink); border-color: var(--acid); }
+    .node.active::before { background: var(--acid); border-color: var(--acid); box-shadow: 0 0 16px var(--acid); }
+    .node.lazy { margin-left: 40px; border-style: dashed; color: var(--cyan); }
+    .flow-arrow { color: var(--acid); text-align: center; }
+
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .stat {
+      min-height: 150px;
+      padding: 30px;
+      border-right: 1px solid var(--line);
+    }
+
+    .stat:last-child { border-right: 0; }
+    .stat strong { display: block; margin-bottom: 7px; color: var(--acid); font-family: var(--display); font-size: 48px; font-weight: 400; line-height: 1; }
+    .stat span { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+
+    section { padding: 90px 0; border-bottom: 1px solid var(--line); }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: .7fr 1.3fr;
+      gap: 40px;
+      margin-bottom: 48px;
+    }
+
+    h2 {
+      margin-bottom: 0;
+      font-family: var(--display);
+      font-size: clamp(42px, 6vw, 82px);
+      font-weight: 400;
+      letter-spacing: -.045em;
+      line-height: .95;
+    }
+
+    .section-intro { max-width: 720px; align-self: end; color: var(--muted); }
+
+    .families {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 1px;
+      background: var(--line);
+      border: 1px solid var(--line);
+    }
+
+    .family {
+      min-height: 310px;
+      padding: 26px;
+      background: var(--panel);
+    }
+
+    .family-number { display: block; margin-bottom: 70px; color: var(--acid); font-size: 12px; }
+    .family h3 { margin-bottom: 14px; font-family: var(--display); font-size: 27px; font-weight: 400; }
+    .family p { color: var(--muted); font-size: 12px; }
+    .family .examples { color: var(--ink); }
+
+    .pipeline {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(150px, 1fr));
+      gap: 18px;
+      overflow-x: auto;
+      padding: 10px 0 20px;
+    }
+
+    .phase {
+      position: relative;
+      min-height: 220px;
+      padding: 22px;
+      border-top: 2px solid var(--acid);
+      background: var(--panel);
+    }
+
+    .phase:not(:last-child)::after {
+      content: "→";
+      position: absolute;
+      top: 44%;
+      right: -17px;
+      z-index: 2;
+      color: var(--acid);
+    }
+
+    .phase b { color: var(--acid); font-size: 11px; letter-spacing: .12em; }
+    .phase h3 { margin: 42px 0 14px; font-family: var(--display); font-size: 24px; font-weight: 400; }
+    .phase p { color: var(--muted); font-size: 11px; }
+
+    .controls {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: grid;
+      grid-template-columns: minmax(220px, 1fr) repeat(3, auto);
+      gap: 10px;
+      padding: 15px;
+      margin-bottom: 26px;
+      border: 1px solid var(--line);
+      background: rgb(17 18 15 / 94%);
+      backdrop-filter: blur(12px);
+    }
+
+    .search,
+    .filter {
+      min-height: 42px;
+      border: 1px solid var(--line);
+      border-radius: 0;
+      color: var(--ink);
+      background: var(--panel);
+      padding: 10px 12px;
+    }
+
+    .search:focus,
+    .filter:focus { outline: 2px solid var(--acid); outline-offset: 1px; }
+
+    .count { align-self: center; min-width: 92px; color: var(--acid); font-size: 11px; text-align: right; }
+
+    .agent-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 16px;
+    }
+
+    .agent-card {
+      position: relative;
+      min-height: 430px;
+      display: flex;
+      flex-direction: column;
+      padding: 24px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      transition: border-color .2s, transform .2s, background .2s;
+      animation: reveal .4s both;
+    }
+
+    .agent-card:hover { border-color: var(--acid); background: var(--panel-2); transform: translateY(-3px); }
+    .agent-card[hidden] { display: none; }
+
+    @keyframes reveal {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+    .agent-name { margin: 0; font-family: var(--display); font-size: 30px; font-weight: 400; line-height: 1; }
+    .family-chip { padding: 5px 7px; border: 1px solid var(--line); color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }
+    .files { min-height: 64px; margin: 24px 0 20px; color: var(--acid); font-size: 12px; }
+
+    .traits { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; margin-bottom: 20px; background: var(--line); border: 1px solid var(--line); }
+    .trait { min-height: 67px; padding: 10px; background: var(--paper); }
+    .trait small { display: block; margin-bottom: 4px; color: var(--muted); font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+    .trait span { font-size: 11px; }
+
+    .summary { margin-bottom: 22px; color: #c3c0b6; font-size: 11px; }
+    .source-link { margin-top: auto; color: var(--cyan); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; text-underline-offset: 3px; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 18px; }
+    .badge { padding: 4px 7px; border: 1px solid var(--line); color: var(--muted); font-size: 9px; text-transform: uppercase; }
+    .badge.lazy { color: var(--cyan); border-color: rgb(100 215 220 / 45%); }
+    .badge.imports { color: var(--lavender); border-color: rgb(182 168 255 / 45%); }
+    .badge.limit { color: var(--orange); border-color: rgb(255 138 76 / 45%); }
+    .badge.source { color: var(--red); border-style: dashed; border-color: rgb(255 111 97 / 55%); }
+
+    .difference-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+    .difference { min-height: 290px; padding: 30px; border: 1px solid var(--line); background: var(--panel); }
+    .difference:nth-child(2), .difference:nth-child(3) { background: var(--acid); color: #11120f; }
+    .difference .mark { display: block; margin-bottom: 50px; color: var(--orange); font-size: 24px; }
+    .difference:nth-child(2) .mark, .difference:nth-child(3) .mark { color: #11120f; }
+    .difference h3 { max-width: 490px; margin-bottom: 14px; font-family: var(--display); font-size: 30px; font-weight: 400; }
+    .difference p { max-width: 620px; color: var(--muted); font-size: 12px; }
+    .difference:nth-child(2) p, .difference:nth-child(3) p { color: #303228; }
+
+    .model {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      border: 1px solid var(--line);
+      background: var(--line);
+    }
+
+    .model-column { min-height: 390px; padding: 28px; background: var(--panel); }
+    .model-column h3 { margin-bottom: 28px; color: var(--acid); font-size: 12px; letter-spacing: .12em; text-transform: uppercase; }
+    .model-column ul { padding: 0; margin: 0; list-style: none; }
+    .model-column li { padding: 12px 0; border-top: 1px solid var(--line); color: #c4c1b7; font-size: 11px; }
+
+    footer { display: flex; justify-content: space-between; gap: 30px; padding: 45px 0 70px; color: var(--muted); font-size: 10px; }
+    footer a { color: var(--acid); text-underline-offset: 3px; }
+
+    .no-results { display: none; padding: 50px; border: 1px dashed var(--line); color: var(--muted); text-align: center; }
+    .no-results.visible { display: block; }
+
+    @media (max-width: 1050px) {
+      .masthead { grid-template-columns: 1fr; min-height: auto; }
+      .specimen { max-width: 620px; transform: none; }
+      .families { grid-template-columns: repeat(2, 1fr); }
+      .agent-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .controls { grid-template-columns: 1fr 1fr; }
+      .count { text-align: left; }
+    }
+
+    @media (max-width: 700px) {
+      .shell { width: min(100% - 24px, 1440px); }
+      .masthead { padding: 65px 0 45px; }
+      h1 { font-size: clamp(58px, 23vw, 100px); }
+      .stat-strip { grid-template-columns: repeat(2, 1fr); }
+      .stat:nth-child(2) { border-right: 0; }
+      .stat:nth-child(-n+2) { border-bottom: 1px solid var(--line); }
+      section { padding: 65px 0; }
+      .section-head { grid-template-columns: 1fr; }
+      .families, .agent-grid, .difference-grid, .model { grid-template-columns: 1fr; }
+      .family-number { margin-bottom: 36px; }
+      .controls { position: static; grid-template-columns: 1fr; }
+      .agent-card { min-height: auto; }
+      .pipeline { grid-template-columns: repeat(5, 78vw); }
+      footer { flex-direction: column; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation: none !important; transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <header class="shell masthead">
+    <div>
+      <p class="eyebrow">Field report / 17 July 2026</p>
+      <h1>Instruction <em>Atlas</em></h1>
+      <p class="lede">How coding agents walk your filesystem, select persistent rules, and assemble the context you never quite see.</p>
+      <div class="header-actions">
+        <a class="button primary" href="#atlas">Open the atlas</a>
+        <a class="button" href="agent-instruction-discovery.md">Read the sourced report</a>
+      </div>
+    </div>
+    <aside class="specimen" aria-label="Example instruction discovery tree">
+      <div class="tree">
+        <div class="node">~/.config/agent/AGENTS.md</div>
+        <div class="flow-arrow">↓ global first</div>
+        <div class="node active">repo/AGENTS.md</div>
+        <div class="node active">repo/packages/AGENTS.md</div>
+        <div class="node">repo/packages/api/AGENTS.override.md</div>
+        <div class="flow-arrow">↓ after read(file)</div>
+        <div class="node lazy">repo/packages/api/tests/AGENTS.md</div>
+      </div>
+    </aside>
+  </header>
+
+  <div class="shell stat-strip" aria-label="Research summary">
+    <div class="stat"><strong>18</strong><span>Harness variants mapped</span></div>
+    <div class="stat"><strong>4</strong><span>Discovery families</span></div>
+    <div class="stat"><strong>12</strong><span>Lazy or conditional loaders</span></div>
+    <div class="stat"><strong>1</strong><span>Shared standard: none</span></div>
+  </div>
+
+  <main>
+    <section class="shell" aria-labelledby="families-title">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">01 / Taxonomy</p>
+          <h2 id="families-title">Four ways to build context.</h2>
+        </div>
+        <p class="section-intro">The filename is the least interesting part. The decisive behavior is whether an agent traverses ancestors, activates rules after touching a file, applies metadata, or waits for explicit input.</p>
+      </div>
+      <div class="families">
+        <article class="family"><span class="family-number">A / DYNAMIC</span><h3>Chain + lazy descendants</h3><p>Load the broad chain now. Add local instructions when a tool enters a subtree.</p><p class="examples">Claude · Gemini · Amp · goose · OpenCode</p></article>
+        <article class="family"><span class="family-number">B / STATIC</span><h3>Fixed ancestor chain</h3><p>Compose root to working directory once. Descendants below launch CWD remain invisible.</p><p class="examples">Codex · pi · Qwen*</p></article>
+        <article class="family"><span class="family-number">C / REACTIVE</span><h3>Conditional rule engine</h3><p>Use globs, descriptions, modes, model judgment, or manual mentions to activate rules.</p><p class="examples">Cursor · Windsurf · Cline · Roo · Continue</p></article>
+        <article class="family"><span class="family-number">D / EXPLICIT</span><h3>Root or opt-in context</h3><p>Read a fixed root scope, or require the user to attach persistent context directly.</p><p class="examples">Junie · Kiro · Aider</p></article>
+      </div>
+    </section>
+
+    <section class="shell" aria-labelledby="pipeline-title">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">02 / Anatomy</p>
+          <h2 id="pipeline-title">Discovery is a pipeline.</h2>
+        </div>
+        <p class="section-intro">A correct visualizer needs to expose every phase. Treating “later in the prompt” as “definitely overrides” erases the most important uncertainty.</p>
+      </div>
+      <div class="pipeline" aria-label="Instruction composition phases">
+        <article class="phase"><b>01</b><h3>Boundary</h3><p>Find filesystem, home, Git, worktree, workspace, or project root.</p></article>
+        <article class="phase"><b>02</b><h3>Candidates</h3><p>Enumerate global files, ancestor names, native rules, and configured sources.</p></article>
+        <article class="phase"><b>03</b><h3>Selection</h3><p>Apply fallback order, local replacements, trust, exclusions, and deduplication.</p></article>
+        <article class="phase"><b>04</b><h3>Expansion</h3><p>Resolve imports, globs, remote bodies, recursion limits, and byte budgets.</p></article>
+        <article class="phase"><b>05</b><h3>Activation</h3><p>Build initial prompt, then add path, model-selected, or manually activated rules.</p></article>
+      </div>
+    </section>
+
+    <section id="atlas" class="shell" aria-labelledby="atlas-title">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">03 / Atlas</p>
+          <h2 id="atlas-title">Compare the harnesses.</h2>
+        </div>
+        <p class="section-intro">Filter by behavior, not brand. “Source-observed” marks implementation details that official user documentation does not clearly guarantee.</p>
+      </div>
+      <div class="controls" aria-label="Agent filters">
+        <input id="search" class="search" type="search" placeholder="Search agents, files, behavior…" aria-label="Search agents">
+        <select id="family-filter" class="filter" aria-label="Filter by discovery family">
+          <option value="all">All families</option>
+          <option value="dynamic">Chain + lazy</option>
+          <option value="static">Fixed chain</option>
+          <option value="rules">Rule engine</option>
+          <option value="root">Root / explicit</option>
+        </select>
+        <select id="feature-filter" class="filter" aria-label="Filter by feature">
+          <option value="all">All features</option>
+          <option value="lazy">Lazy / conditional</option>
+          <option value="imports">Native imports</option>
+          <option value="limit">Published limits</option>
+          <option value="source">Source-only details</option>
+        </select>
+        <output id="count" class="count" aria-live="polite">18 / 18 shown</output>
+      </div>
+      <div id="agent-grid" class="agent-grid"></div>
+      <div id="no-results" class="no-results">No harness matches this combination.</div>
+    </section>
+
+    <section class="shell" aria-labelledby="differences-title">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">04 / Fault lines</p>
+          <h2 id="differences-title">The differences that break assumptions.</h2>
+        </div>
+        <p class="section-intro">Repositories often carry several instruction files because compatibility is asymmetric. Even shared filenames can imply different traversal and precedence.</p>
+      </div>
+      <div class="difference-grid">
+        <article class="difference"><span class="mark">↥</span><h3>The same CWD has different parents.</h3><p>Claude and pi may reach the filesystem root. Amp reaches home. Codex and OpenCode stop at project boundaries. Root detection is harness behavior, not generic setup.</p></article>
+        <article class="difference"><span class="mark">≠</span><h3>Override does not mean override.</h3><p>Codex uses replacement to choose one file in a directory. Cursor defines tier precedence. Most other agents merely order contradictory prose and ask the model to reconcile it.</p></article>
+        <article class="difference"><span class="mark">⌁</span><h3>There may be no final context.</h3><p>Lazy subtree and glob rules mean context evolves as the agent reads files. A useful trace must show initial context and every later activation event.</p></article>
+        <article class="difference"><span class="mark">@</span><h3>Imports are dialects, not a standard.</h3><p>Depth ranges from three to five where published. Some allow globs, some reject paths outside the repo, some ignore code blocks, and OpenCode deliberately does not parse them.</p></article>
+      </div>
+    </section>
+
+    <section class="shell" aria-labelledby="model-title">
+      <div class="section-head">
+        <div>
+          <p class="section-kicker">05 / Build notes</p>
+          <h2 id="model-title">What the CLI must remember.</h2>
+        </div>
+        <p class="section-intro">A per-harness evaluator can share filesystem primitives, but it must preserve why each instruction appeared, what it displaced, and how certain that behavior is.</p>
+      </div>
+      <div class="model">
+        <article class="model-column"><h3>Provenance</h3><ul><li>Path or remote URL</li><li>Managed, global, project, directory, local, or session scope</li><li>Ancestor, fallback, import, glob, or explicit discovery reason</li><li>Documentation or source-code evidence</li></ul></article>
+        <article class="model-column"><h3>State</h3><ul><li>Selected, shadowed, excluded, empty, truncated, or over budget</li><li>Always, startup, path, model, manual, task, or request activation</li><li>Known prompt position</li><li>Unresolved semantic precedence</li></ul></article>
+        <article class="model-column"><h3>Simulation</h3><ul><li>Harness version and configuration</li><li>Launch directory and detected boundary</li><li>Initial context snapshot</li><li>Context after one or more accessed paths</li></ul></article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="shell">
+    <span>Official documentation and official repositories only · research snapshot 2026-07-17</span>
+    <span><a href="agent-instruction-discovery.md">Full report, caveats, and sources</a> · <a href="../VISION.md">Project vision</a></span>
+  </footer>
+
+  <script>
+    const agents = [
+      {
+        name: "Claude Code", family: "dynamic", familyLabel: "Chain + lazy", files: "CLAUDE.md · CLAUDE.local.md · .claude/rules/",
+        boundary: "Filesystem root", order: "Managed → user → root → CWD", timing: "Startup + file read", selection: "Base + local compose",
+        summary: "Loads ancestor instructions eagerly and descendant instructions lazily. Does not natively discover AGENTS.md.",
+        features: ["lazy", "imports"], badges: ["lazy descendants", "@ imports"], source: "https://code.claude.com/docs/en/memory"
+      },
+      {
+        name: "Codex CLI", family: "static", familyLabel: "Fixed chain", files: "AGENTS.override.md · AGENTS.md · fallbacks",
+        boundary: "Detected project root", order: "Global → root → CWD", timing: "Once per run", selection: "One candidate / directory",
+        summary: "Override replaces the normal file only at the same level. Earlier root files consume a 32 KiB project budget first.",
+        features: ["limit"], badges: ["32 KiB aggregate"], source: "https://developers.openai.com/codex/agent-configuration/agents-md"
+      },
+      {
+        name: "OpenCode", family: "dynamic", familyLabel: "Chain + lazy", files: "AGENTS.md · CLAUDE.md fallback · configured URLs",
+        boundary: "Worktree", order: "Global → project → custom", timing: "Startup + file read*", selection: "AGENTS suppresses fallback",
+        summary: "Adds configured files, globs, and remote URLs. Lazy nested loading is implemented in official source but under-documented.",
+        features: ["lazy", "source"], badges: ["lazy descendants", "remote sources", "source-observed"], source: "https://opencode.ai/docs/rules/"
+      },
+      {
+        name: "pi", family: "static", familyLabel: "Fixed chain", files: "AGENTS.md · CLAUDE.md fallback",
+        boundary: "Filesystem root", order: "Global → root → CWD", timing: "Startup or /reload", selection: "One candidate / directory",
+        summary: "Walks above Git repositories to the filesystem root. No lazy descendants, imports, or instruction-specific hard cap.",
+        features: [], badges: ["manual reload"], source: "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/README.md#context-files"
+      },
+      {
+        name: "Gemini CLI", family: "dynamic", familyLabel: "Chain + lazy", files: "GEMINI.md · configurable context.fileName",
+        boundary: "Git / workspace", order: "Global → boundary → CWD", timing: "Startup + tool access", selection: "Configured names compose",
+        summary: "Performs just-in-time discovery on read, list, edit, and write. Imports recurse to a default depth of five.",
+        features: ["lazy", "imports", "limit"], badges: ["JIT context", "@ imports", "200-dir discovery"], source: "https://geminicli.com/docs/cli/gemini-md/"
+      },
+      {
+        name: "Amp", family: "dynamic", familyLabel: "Chain + lazy", files: "AGENTS.md · AGENT.md · CLAUDE.md fallback",
+        boundary: "$HOME", order: "System/global → home → CWD", timing: "Startup + file read", selection: "One candidate / directory",
+        summary: "Activates subtree files lazily. Imports support paths, globs, and conditional frontmatter tied to files Amp reads.",
+        features: ["lazy", "imports"], badges: ["lazy descendants", "conditional imports"], source: "https://ampcode.com/manual#AGENTS.md"
+      },
+      {
+        name: "goose", family: "dynamic", familyLabel: "Chain + lazy", files: "AGENTS.md + .goosehints · configurable names",
+        boundary: "Git root", order: "Global → root → CWD", timing: "Startup + file read", selection: "Configured names compose",
+        summary: "Keeps newly discovered subtree hints active. Source caps imports at depth three and skips parsing over 128 KiB.",
+        features: ["lazy", "imports", "limit", "source"], badges: ["lazy descendants", "@ imports", "128 KiB parser cap", "source-observed"], source: "https://goose-docs.ai/docs/guides/context-engineering/using-goosehints"
+      },
+      {
+        name: "Qwen Code", family: "static", familyLabel: "Fixed chain", files: "QWEN.md + AGENTS.md · QWEN.local.md",
+        boundary: "Git root*", order: "Global → root → CWD → local", timing: "Startup or /refreshmemory", selection: "Default names compose",
+        summary: "Ancestor traversal and five-deep import safety are visible in official source but less explicit in user documentation.",
+        features: ["imports", "source"], badges: ["@ imports", "local override", "source-observed"], source: "https://qwenlm.github.io/qwen-code-docs/en/users/features/memory/"
+      },
+      {
+        name: "Cursor", family: "rules", familyLabel: "Rule engine", files: ".cursor/rules/**/*.mdc · AGENTS.md · root CLAUDE.md",
+        boundary: "Workspace / subtree", order: "Team → project → user precedence", timing: "Always, glob, model, manual", selection: "Path is rule identity",
+        summary: "Combines metadata-driven rules. Nested AGENTS.md inherits parent context and more-specific guidance takes precedence.",
+        features: ["lazy", "imports"], badges: ["conditional rules", "@ references"], source: "https://cursor.com/docs/context/rules"
+      },
+      {
+        name: "Copilot coding agent", family: "rules", familyLabel: "Cloud rule engine", files: ".github/copilot-instructions.md · path rules · AGENTS.md",
+        boundary: "Repository", order: "Published category precedence", timing: "Per request / worked path", selection: "Nearest AGENTS takes precedence",
+        summary: "Supports path-specific applyTo rules, but GitHub does not clarify whether ancestor AGENTS.md files remain included.",
+        features: ["lazy"], badges: ["path activation", "cloud harness"], source: "https://docs.github.com/en/copilot/customizing-copilot/adding-repository-custom-instructions-for-github-copilot"
+      },
+      {
+        name: "Copilot CLI", family: "dynamic", familyLabel: "Chain + touched path", files: "Copilot files · AGENTS.md · CLAUDE.md · GEMINI.md",
+        boundary: "Repository / CWD", order: "Combined; no general precedence", timing: "Session + worked path", selection: "Combines + some deduplication",
+        summary: "Discovers intermediate and touched-path sources. Recursive imports work only in selected instruction formats.",
+        features: ["lazy", "imports"], badges: ["path activation", "recursive imports"], source: "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-custom-instructions"
+      },
+      {
+        name: "Windsurf / Devin", family: "rules", familyLabel: "Rule engine", files: ".devin/rules/*.md · AGENTS.md · legacy Windsurf paths",
+        boundary: "Workspace + Git parents", order: "Global/system + workspace", timing: "Always, glob, model, manual", selection: ".devin preferred over legacy",
+        summary: "Nested AGENTS.md becomes an inferred subtree glob. Native global and workspace rules have per-file character limits.",
+        features: ["lazy", "limit"], badges: ["conditional rules", "6k / 12k chars"], source: "https://docs.windsurf.com/windsurf/cascade/memories"
+      },
+      {
+        name: "Cline", family: "rules", familyLabel: "Rule engine", files: ".clinerules/ · root AGENTS.md · compatibility files",
+        boundary: "Primary workspace", order: "Global + workspace", timing: "Always or paths", selection: "Workspace wins conflicts",
+        summary: "Path conditions inspect prompts, open files, edits, and operations. Nested AGENTS ancestry is not a reliable current contract.",
+        features: ["lazy"], badges: ["conditional rules"], source: "https://docs.cline.bot/customization/cline-rules"
+      },
+      {
+        name: "Roo Code", family: "rules", familyLabel: "Rule engine", files: ".roo/rules* · AGENTS.md · AGENTS.local.md*",
+        boundary: "Workspace", order: "Explicit multi-tier assembly", timing: "Always + optional subfolders", selection: "Directories suppress legacy files",
+        summary: "Recursively reads sorted rule directories. Local AGENTS and exact subfolder behavior are partly source-observed.",
+        features: ["lazy", "source"], badges: ["mode rules", "source-observed"], source: "https://docs.roocode.com/features/custom-instructions"
+      },
+      {
+        name: "Continue IDE / CLI", family: "rules", familyLabel: "Rule engine", files: ".continue/rules/ · root AGENTS/AGENT/CLAUDE",
+        boundary: "Workspace", order: "Lexical / configured assembly", timing: "Always, glob, regex, model", selection: "Rules concatenate",
+        summary: "IDE and CLI loaders differ. IDE colocated rules.md discovery is source-observed and absent from the CLI.",
+        features: ["lazy", "imports", "source"], badges: ["conditional rules", "file:// imports", "source-observed"], source: "https://docs.continue.dev/customize/deep-dives/rules"
+      },
+      {
+        name: "Junie", family: "root", familyLabel: "Root scope", files: ".junie/AGENTS.md · root AGENTS.md · legacy guidelines",
+        boundary: "Project root", order: "Global + one project source", timing: "Task start", selection: "Ordered root fallback",
+        summary: "No automatic hierarchy. Can migrate another agent's file into Junie guidance, but does not continuously import it.",
+        features: [], badges: ["task refresh"], source: "https://junie.jetbrains.com/docs/guidelines-and-memory.html"
+      },
+      {
+        name: "Kiro CLI", family: "root", familyLabel: "Root + resources", files: ".kiro/steering/*.md · root AGENTS.md",
+        boundary: "Workspace", order: "Global + workspace", timing: "Session / agent start", selection: "Workspace wins conflicts",
+        summary: "No scoped ancestry. Custom agents add file:// resources and globs; excess context is dropped beyond 75% of model window.",
+        features: ["imports", "limit"], badges: ["file:// resources", "75% context cap"], source: "https://kiro.dev/docs/cli/steering/"
+      },
+      {
+        name: "Aider", family: "root", familyLabel: "Explicit context", files: "--read · /read · .aider.conf.yml",
+        boundary: "None", order: "Explicit list", timing: "User action / config", selection: "No special filename",
+        summary: "The negative baseline: AGENTS.md has no native meaning. Convention files and directories must be supplied as read-only context.",
+        features: [], badges: ["explicit only"], source: "https://aider.chat/docs/usage/conventions.html"
+      }
+    ];
+
+    const grid = document.querySelector("#agent-grid");
+    const search = document.querySelector("#search");
+    const familyFilter = document.querySelector("#family-filter");
+    const featureFilter = document.querySelector("#feature-filter");
+    const count = document.querySelector("#count");
+    const noResults = document.querySelector("#no-results");
+
+    function badgeClass(label) {
+      if (label.includes("source")) return "source";
+      if (label.includes("import") || label.includes("reference") || label.includes("resource")) return "imports";
+      if (/KiB|chars|cap|context/.test(label)) return "limit";
+      if (/lazy|JIT|conditional|activation|path/.test(label)) return "lazy";
+      return "";
+    }
+
+    function renderCards() {
+      grid.innerHTML = agents.map((agent, index) => `
+        <article class="agent-card" data-family="${agent.family}" data-features="${agent.features.join(" ")}" data-search="${[agent.name, agent.files, agent.boundary, agent.order, agent.timing, agent.selection, agent.summary, ...agent.badges].join(" ").toLowerCase()}" style="animation-delay:${Math.min(index * 25, 300)}ms">
+          <div class="card-top"><h3 class="agent-name">${agent.name}</h3><span class="family-chip">${agent.familyLabel}</span></div>
+          <div class="files">${agent.files}</div>
+          <div class="badges">${agent.badges.map(label => `<span class="badge ${badgeClass(label)}">${label}</span>`).join("")}</div>
+          <div class="traits">
+            <div class="trait"><small>Boundary</small><span>${agent.boundary}</span></div>
+            <div class="trait"><small>Timing</small><span>${agent.timing}</span></div>
+            <div class="trait"><small>Order</small><span>${agent.order}</span></div>
+            <div class="trait"><small>Selection</small><span>${agent.selection}</span></div>
+          </div>
+          <p class="summary">${agent.summary}</p>
+          <a class="source-link" href="${agent.source}" target="_blank" rel="noreferrer">Official source ↗</a>
+        </article>
+      `).join("");
+    }
+
+    function applyFilters() {
+      const query = search.value.trim().toLowerCase();
+      const family = familyFilter.value;
+      const feature = featureFilter.value;
+      let visible = 0;
+
+      document.querySelectorAll(".agent-card").forEach(card => {
+        const matchesQuery = !query || card.dataset.search.includes(query);
+        const matchesFamily = family === "all" || card.dataset.family === family;
+        const matchesFeature = feature === "all" || card.dataset.features.split(" ").includes(feature);
+        card.hidden = !(matchesQuery && matchesFamily && matchesFeature);
+        if (!card.hidden) visible += 1;
+      });
+
+      count.value = `${visible} / ${agents.length} shown`;
+      count.textContent = count.value;
+      noResults.classList.toggle("visible", visible === 0);
+    }
+
+    renderCards();
+    [search, familyFilter, featureFilter].forEach(control => control.addEventListener("input", applyFilters));
+    applyFilters();
+  </script>
+</body>
+</html>
