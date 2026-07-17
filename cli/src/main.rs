@@ -10,6 +10,9 @@ use std::{
 #[derive(Parser)]
 #[command(version, about = "Show coding-agent instruction-file startup layering")]
 struct Cli {
+    /// Explain included layers and existing files excluded during resolution.
+    #[arg(short, long, global = true)]
+    verbose: bool,
     #[arg(value_enum, default_value_t = Agent::OpenCode)]
     agent: Agent,
     #[arg(long, default_value = ".")]
@@ -35,6 +38,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         &r,
         cli.no_content,
         !cli.no_color && io::stdout().is_terminal(),
+        cli.verbose,
     );
     Ok(())
 }
@@ -69,7 +73,7 @@ fn styled(s: impl std::fmt::Display, style: Style, color: bool) -> String {
         s.to_string()
     }
 }
-fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
+fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool, verbose: bool) {
     let banner = styled(
         format!(
             " instructmd · {} · {} — {} ",
@@ -81,6 +85,35 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
         color,
     );
     println!("{banner}");
+    if verbose {
+        let excluded: Vec<_> = r.excluded().collect();
+        if excluded.is_empty() {
+            println!("Excluded existing candidates: none.");
+        } else {
+            println!("Excluded existing candidates:");
+            for c in excluded {
+                match &c.state {
+                    State::Shadowed { by } if by == &c.path => {
+                        println!("- {} — excluded because it is empty", tilde(&c.path));
+                    }
+                    State::Shadowed { by } => {
+                        println!(
+                            "- {} — excluded because {} (selected: {})",
+                            tilde(&c.path),
+                            c.reason,
+                            tilde(by)
+                        );
+                    }
+                    State::Excluded => {
+                        println!("- {} — {}", tilde(&c.path), c.reason);
+                    }
+                    State::Selected => {
+                        unreachable!("excluded iterator cannot return selected candidates")
+                    }
+                }
+            }
+        }
+    }
     let selected: Vec<_> = r.selected().collect();
     if selected.is_empty() {
         println!(
@@ -91,14 +124,31 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
     for (i, c) in selected.iter().enumerate() {
         let (header, body) = layer_styles(i);
         println!();
-        let h = format!(
-            "▌ [{}] {} {} — {}",
-            i + 1,
-            c.scope,
-            tilde(&c.path),
-            c.reason
-        );
+        let h = if verbose {
+            format!("▌ [{}] {} {}", i + 1, c.scope, tilde(&c.path))
+        } else {
+            format!(
+                "▌ [{}] {} {} — {}",
+                i + 1,
+                c.scope,
+                tilde(&c.path),
+                c.reason
+            )
+        };
         println!("{}", styled(h, header, color));
+        if verbose {
+            println!(
+                "{}",
+                styled(
+                    format!(
+                        "  Why included: {} found this existing file while resolving {}. {}.",
+                        r.agent, c.scope, c.reason
+                    ),
+                    body,
+                    color
+                )
+            );
+        }
         if !no_content {
             match fs::read_to_string(&c.path) {
                 Ok(s) => {
@@ -121,7 +171,7 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
         .iter()
         .filter(|c| matches!(c.state, State::Shadowed { .. }))
         .collect();
-    if !shadows.is_empty() {
+    if !verbose && !shadows.is_empty() {
         println!(
             "\n{}",
             if color {
@@ -175,4 +225,20 @@ fn trim_trailing_blank_lines(content: &str) -> String {
         lines.pop();
     }
     lines.join("\n")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn verbose_is_accepted_before_or_after_the_agent() {
+        let before = Cli::try_parse_from(["instructmd", "-v", "claude"]).unwrap();
+        assert!(before.verbose);
+        assert_eq!(before.agent, Agent::Claude);
+
+        let after = Cli::try_parse_from(["instructmd", "claude", "--verbose"]).unwrap();
+        assert!(after.verbose);
+        assert_eq!(after.agent, Agent::Claude);
+    }
 }

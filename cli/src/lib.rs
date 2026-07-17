@@ -59,6 +59,7 @@ impl std::fmt::Display for Scope {
 pub enum State {
     Selected,
     Shadowed { by: PathBuf },
+    Excluded,
 }
 #[derive(Clone, Debug)]
 pub struct Candidate {
@@ -80,6 +81,12 @@ impl Resolution {
         self.candidates
             .iter()
             .filter(|c| c.state == State::Selected)
+    }
+
+    pub fn excluded(&self) -> impl Iterator<Item = &Candidate> {
+        self.candidates
+            .iter()
+            .filter(|c| !matches!(c.state, State::Selected))
     }
 }
 
@@ -301,6 +308,17 @@ fn add_global(r: &mut Resolution, p: PathBuf, reason: &str) {
     }
 }
 
+fn add_excluded_if_exists(r: &mut Resolution, path: PathBuf, scope: Scope, reason: &str) {
+    if exists(&path) {
+        r.candidates.push(Candidate {
+            path,
+            scope,
+            reason: reason.into(),
+            state: State::Excluded,
+        });
+    }
+}
+
 fn opencode(dir: PathBuf, cfg: &ResolverConfig) -> Resolution {
     let disable_all = cfg.opencode_disable_claude;
     let disable_prompt = disable_all || cfg.opencode_disable_claude_prompt;
@@ -323,6 +341,17 @@ fn opencode(dir: PathBuf, cfg: &ResolverConfig) -> Resolution {
             cfg.home.join(".config/opencode/AGENTS.md"),
             "global instruction location; ~/.claude/CLAUDE.md fallback disabled by environment",
         );
+        let reason = if disable_all {
+            "excluded because OPENCODE_DISABLE_CLAUDE_CODE disables CLAUDE.md compatibility at every scope"
+        } else {
+            "excluded because OPENCODE_DISABLE_CLAUDE_CODE_PROMPT disables only the global ~/.claude/CLAUDE.md compatibility prompt"
+        };
+        add_excluded_if_exists(
+            &mut r,
+            cfg.home.join(".claude/CLAUDE.md"),
+            Scope::Global,
+            reason,
+        );
     } else {
         add_global_first_paths(
             &mut r,
@@ -340,6 +369,14 @@ fn opencode(dir: PathBuf, cfg: &ResolverConfig) -> Resolution {
         &["AGENTS.md", "CLAUDE.md", "CONTEXT.md"]
     };
     for d in chain(&project, &dir) {
+        if disable_all {
+            add_excluded_if_exists(
+                &mut r,
+                d.join("CLAUDE.md"),
+                scope_for(&d, &project, &dir),
+                "excluded because OPENCODE_DISABLE_CLAUDE_CODE disables CLAUDE.md compatibility at every scope",
+            );
+        }
         let ctx_wins = exists(&d.join("CONTEXT.md"))
             && !exists(&d.join("AGENTS.md"))
             && (disable_all || !exists(&d.join("CLAUDE.md")));
@@ -650,6 +687,70 @@ mod tests {
         c.opencode_disable_claude = true;
         let r = resolve(Agent::OpenCode, d, &c);
         assert_eq!(r.selected().count(), 0);
+    }
+    #[test]
+    fn opencode_disable_prompt_excludes_only_existing_global_claude_file() {
+        let t = tempdir().unwrap();
+        let home = t.path().join("home");
+        let d = t.path().join("p");
+        fs::create_dir_all(home.join(".claude")).unwrap();
+        fs::write(home.join(".claude/CLAUDE.md"), "global").unwrap();
+        fs::create_dir_all(&d).unwrap();
+        fs::write(d.join(".git"), "").unwrap();
+        fs::write(d.join("CLAUDE.md"), "project").unwrap();
+        let mut c = cfg(home.clone(), t.path().into());
+        c.opencode_disable_claude_prompt = true;
+
+        let r = resolve(Agent::OpenCode, d.clone(), &c);
+        let excluded: Vec<_> = r.excluded().collect();
+        assert_eq!(excluded.len(), 1);
+        assert_eq!(excluded[0].path, home.join(".claude/CLAUDE.md"));
+        assert_eq!(excluded[0].scope, Scope::Global);
+        assert_eq!(excluded[0].state, State::Excluded);
+        assert!(excluded[0]
+            .reason
+            .contains("OPENCODE_DISABLE_CLAUDE_CODE_PROMPT"));
+        assert!(r
+            .selected()
+            .any(|candidate| candidate.path == d.join("CLAUDE.md")));
+    }
+    #[test]
+    fn opencode_disable_all_excludes_existing_claude_files_at_every_scope() {
+        let t = tempdir().unwrap();
+        let home = t.path().join("home");
+        let project = t.path().join("p");
+        let d = project.join("child");
+        fs::create_dir_all(home.join(".claude")).unwrap();
+        fs::write(home.join(".claude/CLAUDE.md"), "global").unwrap();
+        fs::create_dir_all(&d).unwrap();
+        fs::write(project.join(".git"), "").unwrap();
+        fs::write(project.join("CLAUDE.md"), "project").unwrap();
+        fs::write(d.join("CLAUDE.md"), "directory").unwrap();
+        let mut c = cfg(home.clone(), t.path().into());
+        c.opencode_disable_claude = true;
+
+        let r = resolve(Agent::OpenCode, d.clone(), &c);
+        let excluded: Vec<_> = r.excluded().collect();
+        assert_eq!(excluded.len(), 3);
+        assert!(excluded
+            .iter()
+            .all(|candidate| candidate.state == State::Excluded));
+        assert!(excluded.iter().all(|candidate| candidate
+            .reason
+            .contains("OPENCODE_DISABLE_CLAUDE_CODE")
+            && !candidate.reason.contains("PROMPT")));
+        assert!(excluded
+            .iter()
+            .any(|candidate| candidate.path == home.join(".claude/CLAUDE.md")));
+        assert!(excluded
+            .iter()
+            .any(|candidate| candidate.path == project.join("CLAUDE.md")));
+        assert!(excluded
+            .iter()
+            .any(|candidate| candidate.path == d.join("CLAUDE.md")));
+        assert!(!excluded
+            .iter()
+            .any(|candidate| candidate.path.ends_with("missing/CLAUDE.md")));
     }
     #[test]
     fn claude_composes_local() {
