@@ -1,0 +1,16 @@
+{
+  "name": "instructmd-site",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro check && astro build",
+    "preview": "astro preview",
+    "check": "astro check"
+  },
+  "devDependencies": {
+    "@astrojs/check": "^0.9.6",
+    "astro": "^7.1.1",
+    "typescript": "^6.0.0"
+  }
+}
