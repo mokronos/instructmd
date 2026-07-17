@@ -38,17 +38,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
     Ok(())
 }
-fn paint(s: String, scope: Scope, color: bool) -> String {
-    if !color {
-        return s;
-    }
-    let shade = match scope {
-        Scope::Global => AnsiColor::Magenta,
-        Scope::ProjectRoot => AnsiColor::Blue,
-        Scope::Directory => AnsiColor::Cyan,
-        Scope::Local => AnsiColor::Yellow,
-    };
-    styled(s, Style::new().fg_color(Some(shade.into())), color)
+const PALETTE: [AnsiColor; 6] = [
+    AnsiColor::Magenta,
+    AnsiColor::Cyan,
+    AnsiColor::Green,
+    AnsiColor::Yellow,
+    AnsiColor::Blue,
+    AnsiColor::BrightMagenta,
+];
+fn layer_style(layer: usize) -> Style {
+    Style::new().fg_color(Some(PALETTE[layer % PALETTE.len()].into()))
 }
 fn styled(s: impl std::fmt::Display, style: Style, color: bool) -> String {
     if color {
@@ -67,30 +66,29 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
         );
     }
     for (i, c) in selected.iter().enumerate() {
+        let style = layer_style(i);
         let h = format!(
-            "━━ [{}] {} {} ━━━━━━━━━━━━",
+            "━━ [{}] {} {} — {} ━━━━━━━━━━━━",
             i + 1,
             c.scope,
-            c.path.display()
+            c.path.display(),
+            c.reason
         );
-        println!("{}", paint(h, c.scope, color));
-        let why = if color {
-            styled("why:", Style::new().effects(Effects::DIMMED), true)
-        } else {
-            "why:".into()
-        };
-        println!("   {why} {}", c.reason);
+        println!("{}", styled(h, style.effects(Effects::BOLD), color));
         if !no_content {
             match fs::read_to_string(&c.path) {
                 Ok(s) => {
                     let s = trim_trailing_blank_lines(&s);
                     if s.is_empty() {
-                        println!("(empty file)")
+                        println!("{}", styled("(empty file)", style, color))
                     } else {
-                        println!("{s}")
+                        println!("{}", styled(s, style, color))
                     }
                 }
-                Err(e) => println!("(could not read file: {e})"),
+                Err(e) => println!(
+                    "{}",
+                    styled(format!("(could not read file: {e})"), style, color)
+                ),
             }
         }
     }
@@ -135,7 +133,6 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool) {
             }
         }
     }
-    println!("\nStartup resolution only — lazy/conditional loading not simulated.");
     if r.agent == Agent::Codex {
         let bytes: u64 = selected
             .iter()

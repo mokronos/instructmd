@@ -37,6 +37,6 @@ instructmd [AGENT] [--dir <PATH>] [--no-content] [--no-color]
 | `-h`, `--help` | Print help. |
 | `-V`, `--version` | Print version. |
 
-Output blocks are color-coded by scope: magenta = global, blue = project root, cyan = directory, yellow = local. Files that exist on disk but lost same-directory candidate selection (e.g. a `CLAUDE.md` next to an `AGENTS.md` under opencode) are listed at the end as shadowed candidates.
+Each layer (header and content) gets its own color from a palette of six distinct colors, cycling when there are more layers. The header line shows the layer number, scope (GLOBAL, PROJECT ROOT, DIRECTORY, LOCAL), file path, and the discovery reason. Files that exist on disk but lost same-directory candidate selection (e.g. a `CLAUDE.md` next to an `AGENTS.md` under opencode) are listed at the end as shadowed candidates.
 
 The tool models initial startup resolution only, not lazy discovery, conditional rules, imports, or truncation.
