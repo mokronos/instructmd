@@ -89,9 +89,14 @@ pub struct ResolverConfig {
     pub codex_home: Option<PathBuf>,
     pub pi_dir: Option<PathBuf>,
     pub fs_root: Option<PathBuf>,
+    pub opencode_disable_claude: bool,
+    pub opencode_disable_claude_prompt: bool,
 }
 impl ResolverConfig {
     pub fn from_env() -> io::Result<Self> {
+        fn flag(name: &str) -> bool {
+            env::var_os(name).is_some_and(|v| !v.is_empty() && v != "0")
+        }
         Ok(Self {
             home: env::var_os("HOME").map(PathBuf::from).ok_or_else(|| {
                 io::Error::new(
@@ -102,6 +107,8 @@ impl ResolverConfig {
             codex_home: env::var_os("CODEX_HOME").map(PathBuf::from),
             pi_dir: env::var_os("PI_CODING_AGENT_DIR").map(PathBuf::from),
             fs_root: None,
+            opencode_disable_claude: flag("OPENCODE_DISABLE_CLAUDE_CODE"),
+            opencode_disable_claude_prompt: flag("OPENCODE_DISABLE_CLAUDE_CODE_PROMPT"),
         })
     }
 }
@@ -295,6 +302,8 @@ fn add_global(r: &mut Resolution, p: PathBuf, reason: &str) {
 }
 
 fn opencode(dir: PathBuf, cfg: &ResolverConfig) -> Resolution {
+    let disable_all = cfg.opencode_disable_claude;
+    let disable_prompt = disable_all || cfg.opencode_disable_claude_prompt;
     let root = git_root(&dir, &fs_root(&dir, cfg));
     let project = root.clone().unwrap_or_else(|| dir.clone());
     let mut r = base(
@@ -304,29 +313,42 @@ fn opencode(dir: PathBuf, cfg: &ResolverConfig) -> Resolution {
             .unwrap_or_else(|| "no git root; project directory only".into()),
         &[
             "~/.config/opencode/AGENTS.md",
-            "~/.claude/CLAUDE.md",
-            "AGENTS.md | CLAUDE.md | CONTEXT.md",
+            "~/.claude/CLAUDE.md (unless disabled)",
+            "AGENTS.md | CLAUDE.md (unless disabled) | CONTEXT.md",
         ],
     );
-    add_global_first_paths(
-        &mut r,
-        &[
+    if disable_prompt {
+        add_global(
+            &mut r,
             cfg.home.join(".config/opencode/AGENTS.md"),
-            cfg.home.join(".claude/CLAUDE.md"),
-        ],
-        "global instruction location",
-        false,
-    );
+            "global instruction location; ~/.claude/CLAUDE.md fallback disabled by environment",
+        );
+    } else {
+        add_global_first_paths(
+            &mut r,
+            &[
+                cfg.home.join(".config/opencode/AGENTS.md"),
+                cfg.home.join(".claude/CLAUDE.md"),
+            ],
+            "global instruction location",
+            false,
+        );
+    }
+    let names: &[&str] = if disable_all {
+        &["AGENTS.md", "CONTEXT.md"]
+    } else {
+        &["AGENTS.md", "CLAUDE.md", "CONTEXT.md"]
+    };
     for d in chain(&project, &dir) {
+        let ctx_wins = exists(&d.join("CONTEXT.md"))
+            && !exists(&d.join("AGENTS.md"))
+            && (disable_all || !exists(&d.join("CLAUDE.md")));
         add_first(
             &mut r,
             &d,
             (&project, &dir),
-            &["AGENTS.md", "CLAUDE.md", "CONTEXT.md"],
-            if exists(&d.join("CONTEXT.md"))
-                && !exists(&d.join("AGENTS.md"))
-                && !exists(&d.join("CLAUDE.md"))
-            {
+            names,
+            if ctx_wins {
                 "ancestor walk from git root to --dir; first candidate match in this directory (deprecated)"
             } else {
                 "ancestor walk from git root to --dir; first candidate match in this directory"
@@ -586,6 +608,8 @@ mod tests {
             codex_home: None,
             pi_dir: None,
             fs_root: Some(root),
+            opencode_disable_claude: false,
+            opencode_disable_claude_prompt: false,
         }
     }
     #[test]
@@ -606,6 +630,26 @@ mod tests {
             .candidates
             .iter()
             .any(|c| matches!(c.state, State::Shadowed { .. }) && c.path.ends_with("CLAUDE.md")));
+    }
+    #[test]
+    fn opencode_env_disables_claude_fallbacks() {
+        let t = tempdir().unwrap();
+        let home = t.path().join("home");
+        let d = t.path().join("p");
+        fs::create_dir_all(home.join(".claude")).unwrap();
+        fs::write(home.join(".claude/CLAUDE.md"), "g").unwrap();
+        fs::create_dir_all(&d).unwrap();
+        fs::write(d.join(".git"), "").unwrap();
+        fs::write(d.join("CLAUDE.md"), "c").unwrap();
+        let mut c = cfg(home, t.path().into());
+        let r = resolve(Agent::OpenCode, d.clone(), &c);
+        assert_eq!(r.selected().count(), 2);
+        c.opencode_disable_claude_prompt = true;
+        let r = resolve(Agent::OpenCode, d.clone(), &c);
+        assert_eq!(r.selected().count(), 1); // project CLAUDE.md still applies
+        c.opencode_disable_claude = true;
+        let r = resolve(Agent::OpenCode, d, &c);
+        assert_eq!(r.selected().count(), 0);
     }
     #[test]
     fn claude_composes_local() {

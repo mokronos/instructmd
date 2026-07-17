@@ -40,3 +40,5 @@ instructmd [AGENT] [--dir <PATH>] [--no-content] [--no-color]
 Each layer (header and content) gets its own color from a palette of six distinct colors, cycling when there are more layers. The header line shows the layer number, scope (GLOBAL, PROJECT ROOT, DIRECTORY, LOCAL), file path, and the discovery reason. Files that exist on disk but lost same-directory candidate selection (e.g. a `CLAUDE.md` next to an `AGENTS.md` under opencode) are listed at the end as shadowed candidates.
 
 The tool models initial startup resolution only, not lazy discovery, conditional rules, imports, or truncation.
+
+Honored environment variables: `CODEX_HOME`, `PI_CODING_AGENT_DIR`, and OpenCode's Claude Code compatibility switches — `OPENCODE_DISABLE_CLAUDE_CODE` (drops the `CLAUDE.md` fallback everywhere) and `OPENCODE_DISABLE_CLAUDE_CODE_PROMPT` (drops only the global `~/.claude/CLAUDE.md` fallback).
