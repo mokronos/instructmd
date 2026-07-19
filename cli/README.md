@@ -33,7 +33,7 @@ cargo run --manifest-path cli/Cargo.toml -- claude --no-content
 ## Usage
 
 ```
-instructmd [-v|--verbose] [AGENT] [--dir <PATH>] [--no-content] [--no-color]
+instructmd [-v|--verbose] [AGENT] [--dir <PATH>] [--no-content] [--no-color] [--json]
 ```
 
 | Option | Description |
@@ -42,6 +42,7 @@ instructmd [-v|--verbose] [AGENT] [--dir <PATH>] [--no-content] [--no-color]
 | `--dir <PATH>` | Directory to resolve from, as if the agent were launched there. Defaults to the current directory. Affects boundary detection (git root, home, filesystem root) and the ancestor chain. |
 | `--no-content` | Only print the layer list — scope, path, and discovery reason per file — without the file contents. Useful for a quick overview of large instruction files. |
 | `--no-color` | Disable colored output. Colors are also disabled automatically when stdout is not a terminal (e.g. when piping). |
+| `--json` | Emit the resolution model as JSON, including selected, shadowed, and excluded candidates plus notes. Does not print file contents. |
 | `-v`, `--verbose` | Immediately below the banner, show every existing candidate considered but excluded, including its decision; also move and expand each selected layer's reasoning onto a `Why included` line below its header. |
 | `-h`, `--help` | Print help. |
 | `-V`, `--version` | Print version. |

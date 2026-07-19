@@ -1,6 +1,6 @@
 use anstyle::{AnsiColor, Effects, Style};
 use clap::Parser;
-use instructmd::{resolve, Agent, ResolverConfig, Scope, State};
+use instructmd::{resolve, Agent, ResolverConfig, State};
 use std::{
     fs,
     io::{self, IsTerminal},
@@ -21,6 +21,9 @@ struct Cli {
     no_content: bool,
     #[arg(long)]
     no_color: bool,
+    /// Emit the resolution as JSON for scripting.
+    #[arg(long)]
+    json: bool,
 }
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
@@ -33,9 +36,16 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !dir.is_dir() {
         return Err(format!("not a directory: {}", dir.display()).into());
     };
-    let r = resolve(cli.agent, dir, &ResolverConfig::from_env()?);
+    let config = ResolverConfig::from_env()?;
+    let r = resolve(cli.agent, dir, &config);
+    if cli.json {
+        serde_json::to_writer_pretty(io::stdout().lock(), &r)?;
+        println!();
+        return Ok(());
+    }
     print_resolution(
         &r,
+        &config.home,
         cli.no_content,
         !cli.no_color && io::stdout().is_terminal(),
         cli.verbose,
@@ -59,11 +69,13 @@ fn layer_styles(layer: usize) -> (Style, Style) {
         Style::new().fg_color(Some(normal.into())),
     )
 }
-fn tilde(path: &std::path::Path) -> String {
+fn tilde(path: &std::path::Path, home: &std::path::Path) -> String {
     let s = path.display().to_string();
-    match std::env::var("HOME") {
-        Ok(home) if !home.is_empty() && s.starts_with(&home) => s.replacen(&home, "~", 1),
-        _ => s,
+    let home = home.display().to_string();
+    if !home.is_empty() && s.starts_with(&home) {
+        s.replacen(&home, "~", 1)
+    } else {
+        s
     }
 }
 fn styled(s: impl std::fmt::Display, style: Style, color: bool) -> String {
@@ -73,12 +85,18 @@ fn styled(s: impl std::fmt::Display, style: Style, color: bool) -> String {
         s.to_string()
     }
 }
-fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool, verbose: bool) {
+fn print_resolution(
+    r: &instructmd::Resolution,
+    home: &std::path::Path,
+    no_content: bool,
+    color: bool,
+    verbose: bool,
+) {
     let banner = styled(
         format!(
             " instructmd · {} · {} — {} ",
             r.agent,
-            tilde(&r.dir),
+            tilde(&r.dir, home),
             r.boundary
         ),
         Style::new().effects(Effects::INVERT | Effects::BOLD),
@@ -94,18 +112,18 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool, v
             for c in excluded {
                 match &c.state {
                     State::Shadowed { by } if by == &c.path => {
-                        println!("- {} — excluded because it is empty", tilde(&c.path));
+                        println!("- {} — excluded because it is empty", tilde(&c.path, home));
                     }
                     State::Shadowed { by } => {
                         println!(
                             "- {} — excluded because {} (selected: {})",
-                            tilde(&c.path),
+                            tilde(&c.path, home),
                             c.reason,
-                            tilde(by)
+                            tilde(by, home)
                         );
                     }
                     State::Excluded => {
-                        println!("- {} — {}", tilde(&c.path), c.reason);
+                        println!("- {} — {}", tilde(&c.path, home), c.reason);
                     }
                     State::Selected => {
                         unreachable!("excluded iterator cannot return selected candidates")
@@ -125,13 +143,13 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool, v
         let (header, body) = layer_styles(i);
         println!();
         let h = if verbose {
-            format!("▌ [{}] {} {}", i + 1, c.scope, tilde(&c.path))
+            format!("▌ [{}] {} {}", i + 1, c.scope, tilde(&c.path, home))
         } else {
             format!(
                 "▌ [{}] {} {} — {}",
                 i + 1,
                 c.scope,
-                tilde(&c.path),
+                tilde(&c.path, home),
                 c.reason
             )
         };
@@ -207,16 +225,8 @@ fn print_resolution(r: &instructmd::Resolution, no_content: bool, color: bool, v
             }
         }
     }
-    if r.agent == Agent::Codex {
-        let bytes: u64 = selected
-            .iter()
-            .filter(|c| c.scope != Scope::Global)
-            .filter_map(|c| fs::metadata(&c.path).ok())
-            .map(|m| m.len())
-            .sum();
-        if bytes > 32768 {
-            println!("Codex note: selected project instructions total {bytes} bytes; the default aggregate cap is 32 KiB (not simulated).");
-        }
+    for note in &r.notes {
+        println!("\nNote: {note}");
     }
 }
 fn trim_trailing_blank_lines(content: &str) -> String {
@@ -240,5 +250,19 @@ mod tests {
         let after = Cli::try_parse_from(["instructmd", "claude", "--verbose"]).unwrap();
         assert!(after.verbose);
         assert_eq!(after.agent, Agent::Claude);
+    }
+
+    #[test]
+    fn json_is_accepted_before_or_after_the_agent() {
+        assert!(
+            Cli::try_parse_from(["instructmd", "--json", "qwen"])
+                .unwrap()
+                .json
+        );
+        assert!(
+            Cli::try_parse_from(["instructmd", "qwen", "--json"])
+                .unwrap()
+                .json
+        );
     }
 }
