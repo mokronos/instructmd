@@ -24,6 +24,11 @@ pub(super) fn resolve(dir: PathBuf, cfg: &ResolverConfig) -> crate::Resolution {
         cfg.home.join(".config/amp/AGENTS.md"),
         "global location",
     );
+    add_global(
+        &mut resolution,
+        cfg.home.join(".config/AGENTS.md"),
+        "global location",
+    );
     for directory in chain(&root, &dir) {
         add_first(
             &mut resolution,

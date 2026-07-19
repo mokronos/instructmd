@@ -106,6 +106,7 @@ pub struct PiConfig {
 pub struct OpenCodeConfig {
     pub disable_claude: bool,
     pub disable_claude_prompt: bool,
+    pub disable_project_config: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -120,26 +121,35 @@ pub struct ResolverConfig {
 impl ResolverConfig {
     pub fn from_env() -> io::Result<Self> {
         fn flag(name: &str) -> bool {
-            env::var_os(name).is_some_and(|value| !value.is_empty() && value != "0")
+            matches!(env::var(name).as_deref(), Ok("true" | "1"))
         }
 
+        let home = env::var_os("HOME").map(PathBuf::from).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::NotFound,
+                "could not determine home directory",
+            )
+        })?;
+        let pi_directory = env::var_os("PI_CODING_AGENT_DIR")
+            .map(PathBuf::from)
+            .map(|path| match path.strip_prefix("~") {
+                Ok(relative) => home.join(relative),
+                Err(_) => path,
+            });
+
         Ok(Self {
-            home: env::var_os("HOME").map(PathBuf::from).ok_or_else(|| {
-                io::Error::new(
-                    io::ErrorKind::NotFound,
-                    "could not determine home directory",
-                )
-            })?,
+            home,
             fs_root: None,
             codex: CodexConfig {
                 home: env::var_os("CODEX_HOME").map(PathBuf::from),
             },
             pi: PiConfig {
-                directory: env::var_os("PI_CODING_AGENT_DIR").map(PathBuf::from),
+                directory: pi_directory,
             },
             opencode: OpenCodeConfig {
                 disable_claude: flag("OPENCODE_DISABLE_CLAUDE_CODE"),
                 disable_claude_prompt: flag("OPENCODE_DISABLE_CLAUDE_CODE_PROMPT"),
+                disable_project_config: matches!(env::var("OPENCODE_DISABLE_PROJECT_CONFIG"), Ok(value) if value == "true" || value == "1"),
             },
         })
     }

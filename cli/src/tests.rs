@@ -13,6 +13,7 @@ fn config(home: PathBuf, root: PathBuf) -> ResolverConfig {
         opencode: OpenCodeConfig {
             disable_claude: false,
             disable_claude_prompt: false,
+            disable_project_config: false,
         },
     }
 }
@@ -53,13 +54,54 @@ fn opencode_environment_switches_exclude_the_documented_claude_scopes() {
 
     config.opencode.disable_claude_prompt = true;
     let prompt_disabled = resolve(Agent::OpenCode, project.clone(), &config);
-    assert_eq!(prompt_disabled.selected().count(), 1);
-    assert_eq!(prompt_disabled.excluded().count(), 1);
+    assert_eq!(prompt_disabled.selected().count(), 0);
+    assert_eq!(prompt_disabled.excluded().count(), 2);
 
     config.opencode.disable_claude = true;
     let fully_disabled = resolve(Agent::OpenCode, project, &config);
     assert_eq!(fully_disabled.selected().count(), 0);
     assert_eq!(fully_disabled.excluded().count(), 2);
+}
+
+#[test]
+fn opencode_uses_one_project_filename_for_the_entire_walk() {
+    let temp = tempdir().unwrap();
+    let project = temp.path().join("project");
+    let child = project.join("child");
+    fs::create_dir_all(&child).unwrap();
+    fs::write(project.join(".git"), "").unwrap();
+    fs::write(project.join("CLAUDE.md"), "parent fallback").unwrap();
+    fs::write(child.join("AGENTS.md"), "child native").unwrap();
+
+    let resolution = resolve(
+        Agent::OpenCode,
+        child,
+        &config(temp.path().into(), temp.path().into()),
+    );
+
+    assert_eq!(resolution.selected().count(), 1);
+    assert!(resolution
+        .selected()
+        .all(|candidate| candidate.path.ends_with("AGENTS.md")));
+    assert!(resolution
+        .excluded()
+        .any(|candidate| candidate.path.ends_with("CLAUDE.md")));
+}
+
+#[test]
+fn opencode_can_disable_the_entire_project_walk() {
+    let temp = tempdir().unwrap();
+    let project = temp.path().join("project");
+    fs::create_dir_all(&project).unwrap();
+    fs::write(project.join(".git"), "").unwrap();
+    fs::write(project.join("AGENTS.md"), "project").unwrap();
+    let mut config = config(temp.path().into(), temp.path().into());
+    config.opencode.disable_project_config = true;
+
+    let resolution = resolve(Agent::OpenCode, project, &config);
+
+    assert_eq!(resolution.selected().count(), 0);
+    assert_eq!(resolution.excluded().count(), 1);
 }
 
 #[test]
@@ -75,6 +117,21 @@ fn pi_uses_the_configured_filesystem_root() {
         &config(temp.path().into(), temp.path().into()),
     );
     assert_eq!(resolution.selected().count(), 2);
+}
+
+#[test]
+fn pi_deduplicates_a_global_file_that_is_also_on_the_directory_chain() {
+    let temp = tempdir().unwrap();
+    let agent_directory = temp.path().join("agent");
+    let directory = agent_directory.join("project");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(agent_directory.join("AGENTS.md"), "global").unwrap();
+    let mut config = config(temp.path().into(), temp.path().into());
+    config.pi.directory = Some(agent_directory);
+
+    let resolution = resolve(Agent::Pi, directory, &config);
+
+    assert_eq!(resolution.selected().count(), 1);
 }
 
 #[test]
@@ -163,6 +220,28 @@ fn goose_composes_both_global_and_project_candidates() {
 }
 
 #[test]
+fn goose_loads_shared_agents_home_and_skips_empty_hints() {
+    let temp = tempdir().unwrap();
+    let home = temp.path().join("home");
+    let project = temp.path().join("project");
+    fs::create_dir_all(home.join(".agents")).unwrap();
+    fs::create_dir_all(&project).unwrap();
+    fs::write(home.join(".agents/AGENTS.md"), "shared").unwrap();
+    fs::write(project.join(".git"), "").unwrap();
+    fs::write(project.join(".goosehints"), "").unwrap();
+
+    let resolution = resolve(Agent::Goose, project, &config(home, temp.path().into()));
+
+    assert_eq!(resolution.selected().count(), 1);
+    assert!(resolution
+        .selected()
+        .next()
+        .unwrap()
+        .path
+        .ends_with(".agents/AGENTS.md"));
+}
+
+#[test]
 fn qwen_loads_project_root_local_memory_last() {
     let temp = tempdir().unwrap();
     let project = temp.path().join("project");
@@ -180,4 +259,25 @@ fn qwen_loads_project_root_local_memory_last() {
     let last = resolution.selected().last().unwrap();
     assert_eq!(last.scope, Scope::Local);
     assert!(last.path.ends_with(".qwen/QWEN.local.md"));
+}
+
+#[test]
+fn qwen_loads_global_agents_and_requires_a_project_root_for_local_memory() {
+    let temp = tempdir().unwrap();
+    let home = temp.path().join("home");
+    let directory = temp.path().join("directory");
+    fs::create_dir_all(home.join(".qwen")).unwrap();
+    fs::create_dir_all(directory.join(".qwen")).unwrap();
+    fs::write(home.join(".qwen/AGENTS.md"), "global").unwrap();
+    fs::write(directory.join(".qwen/QWEN.local.md"), "local").unwrap();
+
+    let resolution = resolve(Agent::Qwen, directory, &config(home, temp.path().into()));
+
+    assert_eq!(resolution.selected().count(), 1);
+    assert!(resolution
+        .selected()
+        .next()
+        .unwrap()
+        .path
+        .ends_with(".qwen/AGENTS.md"));
 }

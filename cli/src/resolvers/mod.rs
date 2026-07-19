@@ -166,6 +166,16 @@ pub(super) fn add_global(resolution: &mut Resolution, path: PathBuf, reason: &st
         });
     }
 }
+pub(super) fn add_non_empty_global(resolution: &mut Resolution, path: PathBuf, reason: &str) {
+    if fs::metadata(&path).is_ok_and(|metadata| metadata.is_file() && metadata.len() > 0) {
+        resolution.candidates.push(Candidate {
+            path,
+            scope: Scope::Global,
+            reason: reason.into(),
+            state: State::Selected,
+        });
+    }
+}
 pub(super) fn add_excluded(resolution: &mut Resolution, path: PathBuf, scope: Scope, reason: &str) {
     if exists(&path) {
         resolution.candidates.push(Candidate {
@@ -173,6 +183,23 @@ pub(super) fn add_excluded(resolution: &mut Resolution, path: PathBuf, scope: Sc
             scope,
             reason: reason.into(),
             state: State::Excluded,
+        });
+    }
+}
+
+pub(super) fn add_shadowed(
+    resolution: &mut Resolution,
+    path: PathBuf,
+    scope: Scope,
+    by: PathBuf,
+    reason: &str,
+) {
+    if exists(&path) {
+        resolution.candidates.push(Candidate {
+            path,
+            scope,
+            reason: reason.into(),
+            state: State::Shadowed { by },
         });
     }
 }

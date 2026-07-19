@@ -26,6 +26,9 @@ pub(super) fn resolve(dir: PathBuf, cfg: &ResolverConfig) -> crate::Resolution {
         Selection::FirstExisting,
     );
     for directory in chain(&root, &dir) {
+        if directory == home {
+            continue;
+        }
         add_first(
             &mut resolution,
             CANDIDATES.iter().map(|name| directory.join(name)),
